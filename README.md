@@ -2,102 +2,150 @@
 
 ## Phase 04 of the MADAR Cloud Transformation
 
-> **Status: PLANNED / READY FOR EXECUTION**  
-> Corporate Active Directory representation → AWS identity integration → IAM Identity Center → SSO/MFA → permission sets → least-privilege validation → lifecycle testing → audit → cleanup.
+> **Status: ACTIVE — LOCAL IDENTITY LAB VALIDATED / AWS INTEGRATION NEXT**  
+> Corporate Active Directory representation → domain client validation → group/GPO authorization proof → AWS identity integration → IAM Identity Center → SSO/MFA → permission sets → lifecycle/audit validation → cleanup.
 
-MADAR has completed the migration of its representative legacy workload to AWS. Phase 04 addresses the next business problem: **how employees securely access the growing AWS environment using centralized workforce identity instead of individual long-lived IAM credentials.**
+MADAR has completed the representative workload migration in Phase 03. Phase 04 addresses the next business problem: **how employees securely access the growing AWS environment through centralized workforce identity instead of individual long-lived IAM credentials.**
+
+## Current execution state
+
+The local corporate-identity foundation is now built and validated.
+
+```text
+VMware lab
+│
+├── MADAR-DC01
+│   ├── Windows Server 2025
+│   ├── Active Directory Domain Services
+│   ├── DNS
+│   ├── Domain: madar.local
+│   ├── Department OUs
+│   ├── Security groups
+│   └── Group Policy
+│
+├── MADAR-CLIENT01
+│   ├── Windows 11 Pro
+│   ├── joined to madar.local
+│   ├── domain-user authentication validated
+│   └── GPO enforcement validated
+│
+└── MADAR-LEGACY-01
+    └── retained representative legacy workload
+```
+
+Validated locally:
+
+- `MADAR-DC01` promoted to a domain controller for `madar.local`,
+- five synthetic department identities created,
+- group membership verified with PowerShell,
+- `MADAR-CLIENT01` successfully joined to the domain,
+- domain login validated with `sara.ibrahim`,
+- `GPO-IT-Security` applied to the client,
+- Domain firewall policy validated,
+- `GG-IT` access to the IT share succeeded,
+- cross-department access to the Finance share was denied as designed.
+
+The next execution gate is the **AWS identity-integration architecture and cost check**. No paid Directory Service resource is created until the currently supported path and `us-east-1` cost are confirmed.
 
 ## Business story
 
-The MADAR scenario assumes a corporate employee directory already exists outside AWS. For the hands-on lab, a small Windows Server VM will represent that existing corporate Active Directory.
+MADAR's company narrative assumes a corporate employee directory existed before Phase 04. The VMware-hosted Windows Server environment is a **reproducible lab representation** of that existing identity system; it is not a second workload migration and does not rewrite the Phase 03 chronology.
 
 ```text
-MADAR workforce
-      |
-      v
-Corporate Active Directory
-      |
-      | identity integration
-      v
+Corporate workforce
+      ↓
+MADAR Active Directory
+      ↓
+Supported AWS identity integration
+      ↓
 AWS IAM Identity Center
-      |
-      +--> Cloud Admin
-      +--> DevOps Engineer
-      +--> Developer
-      +--> Security
-      +--> Auditor
-      |
-      v
-AWS account access through SSO + temporary sessions
+      ↓
+Groups + Permission Sets
+      ↓
+SSO + MFA
+      ↓
+Temporary Console / CLI sessions
 ```
 
-The Active Directory VM is a **lab representation of a pre-existing corporate identity system**. It is not a second workload migration and it is not a claim that the directory was created after Phase 03 in the company narrative.
+## Local workforce model
+
+| Department | Synthetic employee | AD security group |
+|---|---|---|
+| Management | Ahmed Ali (`ahmed.ali`) | `GG-Management` |
+| IT | Sara Ibrahim (`sara.ibrahim`) | `GG-IT` |
+| Finance | Omar Hassan (`omar.hassan`) | `GG-Finance` |
+| HR | Noura Saleh (`noura.saleh`) | `GG-HR` |
+| Sales | Khalid Mansour (`khalid.mansour`) | `GG-Sales` |
+
+These identities are synthetic and exist only for the lab.
 
 ## Phase objective
 
-Build and validate an enterprise-style workforce-access model that demonstrates:
+Phase 04 closes only after the local identity source is integrated with AWS and the project demonstrates:
 
-- centralized employee identity,
+- centralized workforce identity,
 - group-based authorization,
-- AWS IAM Identity Center,
+- IAM Identity Center,
 - SSO and MFA,
 - temporary AWS credentials,
 - permission sets and least privilege,
-- positive and negative access tests,
+- positive and negative AWS access tests,
 - console and CLI SSO,
 - onboarding, role-change and offboarding workflows,
 - audit evidence,
 - cost-aware cleanup.
 
-## Planned workforce model
+## Evidence highlights
 
-| Team | Intended access posture |
-|---|---|
-| Cloud Admins | tightly controlled administrative access |
-| DevOps Engineers | infrastructure/deployment operations without unrestricted identity administration |
-| Developers | application-development access only |
-| Security Team | security visibility and investigation access |
-| Auditors | read-only evidence/review access |
+### Domain controller verification
 
-## Acceptance philosophy
+![Domain controller verification](evidence/Domain-Controller-Verification.png)
 
-Phase 04 is not complete because Identity Center says `Enabled`.
+### Workforce security-group verification
 
-```text
-Authentication works                 != sufficient
-Permission set exists                != sufficient
-User can open AWS console            != sufficient
+![AD security group membership verification](evidence/AD-Security-Group-Membership-Verification.png)
 
-SUCCESS = centralized identity
-        + SSO/MFA
-        + role-based permissions
-        + temporary credentials
-        + allowed-action proof
-        + denied-action proof
-        + lifecycle revocation proof
-        + audit evidence
-        + intentional cleanup
-```
+### Domain join
+
+![CLIENT01 domain join success](evidence/CLIENT01-Domain-Join-Success.png)
+
+### GPO applied
+
+![GPO IT Security applied](evidence/GPO-IT-Security-Applied.png)
+
+### Least-privilege local access test
+
+Allowed IT share access:
+
+![Sara IT share access success](evidence/Sara-IT-Share-Access-Success.png)
+
+Denied Finance share access:
+
+![Sara Finance access denied](evidence/Sara-Finance-Access-Denied.png)
+
+See [`evidence/README.md`](evidence/README.md) for the complete evidence index.
 
 ## Execution style
 
 The implementation intentionally uses a hybrid learning approach:
 
 ```text
-New concept        -> AWS Console first
-Understand resource -> CLI inspection
-Repeated operation -> CLI where useful
-Validation          -> CLI + console evidence
-Security boundary   -> explicit negative tests
+New concept         → GUI / Console first
+Understand resource → PowerShell / CLI inspection
+Repeated operation  → automation where useful
+Validation          → command output + visual evidence
+Security boundary   → explicit negative tests
 ```
+
+The local lab already demonstrates this pattern: the first user was created manually, the remaining workforce identities were automated with PowerShell, and group/GPO behavior was independently verified.
 
 ## Cost guardrail
 
-IAM, STS, AWS Organizations and IAM Identity Center do not add a standalone service charge for the core workforce-access lab. Directory integration can introduce hourly cost depending on the selected AWS Directory Service path, so no paid directory resource will be created until the exact supported architecture and hourly cost are verified for `us-east-1`.
+The VMware-hosted identity lab does not consume AWS resources. IAM, STS, AWS Organizations and IAM Identity Center do not add a standalone service charge for the core workforce-access design; the paid-risk point is the selected AWS Directory Service/integration path.
 
-Any paid integration resource used only for validation will be created late, tested quickly, evidenced, and removed after acceptance unless it is explicitly required by later MADAR phases.
+Any paid AWS integration resource used only for validation will be created late, tested quickly, evidenced, and removed after acceptance unless later MADAR phases genuinely require it.
 
-## Planned repository structure
+## Repository structure
 
 ```text
 .
@@ -105,11 +153,9 @@ Any paid integration resource used only for validation will be created late, tes
 ├── CURRENT-STATE.md
 ├── REPOSITORY-SCOPE.md
 ├── checklists/
-│   └── phase04-master-checklist.md
 ├── decisions/
 ├── docs/
 ├── evidence/
-│   └── README.md
 ├── identity-model/
 ├── policies/
 ├── runbooks/
@@ -122,7 +168,9 @@ Any paid integration resource used only for validation will be created late, tes
 Phase 01  Cloud Foundation                     COMPLETE
 Phase 02  Serverless Event Processing          COMPLETE
 Phase 03  Legacy Migration & Data Center Exit  COMPLETE
-Phase 04  Enterprise Identity & Workforce      READY TO EXECUTE
+Phase 04  Enterprise Identity & Workforce      ACTIVE
+          ├── Local AD/client validation        COMPLETE
+          └── AWS workforce integration         NEXT
 Phase 05  Application Modernization            FUTURE
 ```
 
