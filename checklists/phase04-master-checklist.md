@@ -1,33 +1,50 @@
 # Phase 04 Master Checklist
 
 ## A — Planning
-- [ ] business problem approved
-- [ ] current-state identity model documented
-- [ ] target identity architecture documented
-- [ ] workforce groups defined
-- [ ] permission matrix defined
-- [ ] MFA/session strategy defined
-- [ ] cost ceiling defined
-- [ ] cleanup plan defined
+- [x] business problem approved
+- [x] current-state identity model documented
+- [ ] target AWS identity architecture finalized
+- [x] local workforce groups defined
+- [ ] AWS permission matrix finalized
+- [ ] MFA/session strategy finalized for selected identity source
+- [ ] exact AWS integration cost ceiling defined
+- [x] cleanup/continuity strategy documented
 
 ## B — Corporate directory lab
-- [ ] create `MADAR-DC01` in VMware
-- [ ] install Windows Server
-- [ ] install/configure AD DS
-- [ ] configure DNS
-- [ ] create MADAR domain
-- [ ] create organizational units
-- [ ] create workforce groups
-- [ ] create synthetic employee accounts
-- [ ] verify group membership
-- [ ] capture directory baseline evidence
+- [x] create `MADAR-DC01` in VMware
+- [x] install Windows Server 2025
+- [x] configure static IP for the domain controller
+- [x] install/configure AD DS
+- [x] configure DNS
+- [x] create `madar.local` forest/domain
+- [x] create organizational units
+- [x] create workforce security groups
+- [x] create synthetic employee accounts
+- [x] automate repeat user creation with PowerShell
+- [x] verify group membership
+- [x] capture directory baseline evidence
+
+## B2 — Domain client and local authorization validation
+- [x] create `MADAR-CLIENT01`
+- [x] install Windows 11 Pro
+- [x] point client DNS to `MADAR-DC01`
+- [x] validate DNS connectivity to `madar.local`
+- [x] join `MADAR-CLIENT01` to `madar.local`
+- [x] validate domain-user login
+- [x] create and link `GPO-IT-Security`
+- [x] verify GPO application on the client
+- [x] verify Domain firewall policy
+- [x] create departmental SMB shares for authorization testing
+- [x] verify allowed IT-share access for `GG-IT`
+- [x] verify denied Finance-share access for the IT user
+- [x] capture positive and negative local authorization evidence
 
 ## C — AWS identity foundation
 - [ ] verify AWS Organizations state
 - [ ] verify IAM Identity Center instance/state
 - [ ] confirm supported identity-source integration path from current AWS docs
 - [ ] confirm `us-east-1` pricing before any paid directory resource
-- [ ] document integration ADR
+- [ ] document final integration ADR
 - [ ] configure identity source/integration
 
 ## D — Workforce authorization
@@ -47,14 +64,14 @@
 - [ ] verify no employee long-lived AWS access keys are required
 - [ ] configure/test AWS CLI SSO
 
-## F — Positive access tests
+## F — Positive AWS access tests
 - [ ] Cloud Admin allowed action
 - [ ] DevOps allowed action
 - [ ] Developer allowed action
 - [ ] Security allowed read/investigation action
 - [ ] Auditor read-only action
 
-## G — Negative access tests
+## G — Negative AWS access tests
 - [ ] Developer IAM-admin action denied
 - [ ] Auditor write/delete denied
 - [ ] Security infrastructure-admin action denied
@@ -74,23 +91,32 @@
 - [ ] temporary session evidence captured
 
 ## J — Evidence and documentation
-- [ ] architecture diagram
-- [ ] AD baseline screenshot
-- [ ] users/groups screenshot
+- [x] domain-controller verification
+- [x] OU structure evidence
+- [x] security-group evidence
+- [x] manual user-creation evidence
+- [x] PowerShell user-automation evidence
+- [x] group-membership verification
+- [x] Windows client baseline evidence
+- [x] domain-join evidence
+- [x] domain-user login evidence
+- [x] GPO configuration/application evidence
+- [x] local allowed/denied authorization evidence
+- [ ] final AWS architecture diagram
 - [ ] Identity Center screenshot
 - [ ] permission-set screenshot
 - [ ] account-assignment screenshot
 - [ ] SSO login screenshot
 - [ ] MFA proof
 - [ ] CLI SSO proof
-- [ ] negative-test proof
+- [ ] AWS negative-test proof
 - [ ] offboarding proof
 - [ ] audit proof
 - [ ] final cost/cleanup proof
 
 ## K — Cleanup / continuity
 - [ ] delete paid temporary directory/integration resources if not required later
-- [ ] preserve local `MADAR-DC01` VM powered off for later MADAR phases
+- [x] retain local identity VMs powered off when not required
 - [ ] preserve required workforce identity configuration for Phase 05+ only if cost-safe
 - [ ] final AWS cost/resource audit
 - [ ] update master transformation repository
