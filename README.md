@@ -2,14 +2,14 @@
 
 ## Phase 04 of the MADAR Cloud Transformation
 
-> **Status: ACTIVE — LOCAL IDENTITY LAB VALIDATED / AWS INTEGRATION NEXT**  
-> Corporate Active Directory representation → domain client validation → group/GPO authorization proof → AWS identity integration → IAM Identity Center → SSO/MFA → permission sets → lifecycle/audit validation → cleanup.
+> **Status: ACTIVE — LOCAL IDENTITY VALIDATED / HYBRID CONNECTIVITY BUILD NEXT**  
+> Corporate Active Directory representation → local authorization proof → CGNAT-aware routed WireGuard connectivity → AD Connector → IAM Identity Center → SSO/MFA → permission sets → lifecycle/audit validation → cleanup.
 
 MADAR has completed the representative workload migration in Phase 03. Phase 04 addresses the next business problem: **how employees securely access the growing AWS environment through centralized workforce identity instead of individual long-lived IAM credentials.**
 
 ## Current execution state
 
-The local corporate-identity foundation is now built and validated.
+The local corporate-identity foundation is built and validated.
 
 ```text
 VMware lab
@@ -45,7 +45,75 @@ Validated locally:
 - `GG-IT` access to the IT share succeeded,
 - cross-department access to the Finance share was denied as designed.
 
-The next execution gate is the **AWS identity-integration architecture and cost check**. No paid Directory Service resource is created until the currently supported path and `us-east-1` cost are confirmed.
+## Hybrid-connectivity constraint discovered
+
+Preflight testing of the Zain 5G home-lab connection established that:
+
+- the router WAN IPv4 is private (`10.x.x.x`),
+- the lab sits behind carrier-grade NAT,
+- the observed public IPv4 changes after reconnect/restart,
+- the home lab therefore does not provide the stable directly-owned public IPv4 expected by the classic static-address Customer Gateway design.
+
+The project will not pretend this constraint does not exist and will not expose the domain controller publicly.
+
+## Selected lab architecture
+
+The accepted Phase 04 lab design uses a **self-managed routed WireGuard VPN** initiated outbound from the home lab and terminated on an EC2 network appliance.
+
+```text
+HOME / VMware                                  AWS / us-east-1
+
+MADAR-DC01                                     Phase 04 VPC
+192.168.14.10                                  non-overlapping CIDR
+AD DS + DNS                                         |
+      |                                             |
+      v                                             v
+MADAR-WG01   ===== WireGuard tunnel =====      EC2 WG-HUB
+Linux router       outbound initiated          Linux network appliance
+      |                                             |
+192.168.14.0/24                                    |
+                                                    v
+                                              AD Connector
+                                                    |
+                                                    v
+                                           IAM Identity Center
+                                                    |
+                                                    v
+                                     Groups + Permission Sets
+                                                    |
+                                                    v
+                                      SSO + MFA + CLI + Audit
+```
+
+Why this design:
+
+- keeps `madar.local` as the central corporate identity source,
+- solves the lab's CGNAT/dynamic-public-IP constraint by initiating the tunnel outbound,
+- creates a real routed path instead of recreating workforce users manually in AWS,
+- keeps `MADAR-DC01` private,
+- is inexpensive and temporary enough for a portfolio lab,
+- creates a defensible architecture decision around a real networking constraint.
+
+Important: this is **not** described as AWS managed Site-to-Site VPN. It is a **self-managed WireGuard routed VPN using an EC2 network appliance**.
+
+Architecture decision: [`decisions/ADR-004-cgnat-wireguard-hybrid-connectivity.md`](decisions/ADR-004-cgnat-wireguard-hybrid-connectivity.md)  
+Execution plan: [`docs/12-wireguard-hybrid-execution-plan.md`](docs/12-wireguard-hybrid-execution-plan.md)
+
+## Mandatory gate before AD Connector
+
+AD Connector is not created until the AWS-side routed path proves the required local AD services are reachable:
+
+```text
+MADAR-DC01 — 192.168.14.10
+├── network reachability
+├── DNS TCP/UDP 53
+├── Kerberos TCP/UDP 88
+├── LDAP TCP/UDP 389
+├── madar.local DNS resolution
+└── suitable time synchronization for Kerberos
+```
+
+This prevents Directory Service spend while routing/DNS/firewall problems are unresolved.
 
 ## Business story
 
@@ -56,7 +124,9 @@ Corporate workforce
       ↓
 MADAR Active Directory
       ↓
-Supported AWS identity integration
+Routed hybrid connectivity
+      ↓
+AWS Directory integration
       ↓
 AWS IAM Identity Center
       ↓
@@ -95,6 +165,42 @@ Phase 04 closes only after the local identity source is integrated with AWS and 
 - audit evidence,
 - cost-aware cleanup.
 
+## Execution sequence
+
+```text
+Local AD/client validation                       COMPLETE
+      ↓
+CGNAT/public-IP preflight                        COMPLETE
+      ↓
+WireGuard architecture decision                  COMPLETE
+      ↓
+MADAR-WG01 + AWS WG-HUB                          NEXT
+      ↓
+Bidirectional routing + AD protocol validation
+      ↓
+AD Connector
+      ↓
+AWS Organizations / IAM Identity Center
+      ↓
+Permission Sets + account assignments
+      ↓
+SSO + MFA + temporary sessions
+      ↓
+AWS CLI SSO
+      ↓
+Positive + negative authorization tests
+      ↓
+Joiner / mover / leaver
+      ↓
+CloudTrail audit
+      ↓
+Evidence + cost/resource cleanup
+      ↓
+PHASE 04 ACCEPTED
+```
+
+The detailed, no-skip execution checklist lives in [`checklists/phase04-master-checklist.md`](checklists/phase04-master-checklist.md).
+
 ## Evidence highlights
 
 ### Domain controller verification
@@ -127,8 +233,6 @@ See [`evidence/README.md`](evidence/README.md) for the complete evidence index.
 
 ## Execution style
 
-The implementation intentionally uses a hybrid learning approach:
-
 ```text
 New concept         → GUI / Console first
 Understand resource → PowerShell / CLI inspection
@@ -137,13 +241,17 @@ Validation          → command output + visual evidence
 Security boundary   → explicit negative tests
 ```
 
-The local lab already demonstrates this pattern: the first user was created manually, the remaining workforce identities were automated with PowerShell, and group/GPO behavior was independently verified.
-
 ## Cost guardrail
 
-The VMware-hosted identity lab does not consume AWS resources. IAM, STS, AWS Organizations and IAM Identity Center do not add a standalone service charge for the core workforce-access design; the paid-risk point is the selected AWS Directory Service/integration path.
+The local VMware identity lab itself does not consume AWS resources. The selected connectivity path adds temporary AWS EC2/public-IPv4 usage and later Directory Service usage.
 
-Any paid AWS integration resource used only for validation will be created late, tested quickly, evidenced, and removed after acceptance unless later MADAR phases genuinely require it.
+Rules:
+
+- current pricing/free-trial eligibility is checked immediately before AD Connector creation,
+- paid AWS resources are created only when the preceding technical gate has passed,
+- evidence is collected promptly,
+- temporary EC2/public-IP/Directory Service resources are removed after acceptance unless explicitly required by a later phase,
+- final Bills / Cost Explorer and resource inventory are reviewed before Phase 04 is marked complete.
 
 ## Repository structure
 
@@ -170,7 +278,8 @@ Phase 02  Serverless Event Processing          COMPLETE
 Phase 03  Legacy Migration & Data Center Exit  COMPLETE
 Phase 04  Enterprise Identity & Workforce      ACTIVE
           ├── Local AD/client validation        COMPLETE
-          └── AWS workforce integration         NEXT
+          ├── Hybrid design                     COMPLETE
+          └── WireGuard/AWS integration         NEXT
 Phase 05  Application Modernization            FUTURE
 ```
 
