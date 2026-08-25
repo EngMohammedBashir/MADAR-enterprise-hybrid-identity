@@ -53,13 +53,25 @@
 - [x] document why the selected design is a CGNAT-aware lab workaround rather than a claim that it is AWS managed Site-to-Site VPN
 
 ## C1 — Local WireGuard routing layer
-- [ ] create lightweight Linux VM `MADAR-WG01`
-- [ ] keep `MADAR-WG01` on the same VMware network as `MADAR-DC01`
-- [ ] assign a verified unused static IPv4 on `192.168.14.0/24`
-- [ ] install WireGuard
-- [ ] enable IPv4 forwarding
+- [x] repurpose the retired `MADAR-LEGACY01` VM as `MADAR-WG01`
+- [x] rename Ubuntu hostname to `madar-wg01`
+- [x] keep `MADAR-WG01` on the same VMware network as `MADAR-DC01`
+- [x] verify VMware DHCP pool before assigning a static address
+- [x] assign static IPv4 `192.168.14.30/24`
+- [x] verify default gateway `192.168.14.2`
+- [x] verify SSH connectivity on the static address
+- [x] install WireGuard / wireguard-tools
+- [x] enable persistent IPv4 forwarding
+- [x] create WireGuard keypair locally
+- [x] protect the private key with mode `600`
+- [x] verify `MADAR-WG01` can reach `MADAR-DC01` on `192.168.14.10`
+- [x] verify `madar.local` resolves through `MADAR-DC01`
+- [x] verify TCP connectivity from WG01 to DC01 on DNS 53
+- [x] verify TCP connectivity from WG01 to DC01 on Kerberos 88
+- [x] verify TCP connectivity from WG01 to DC01 on LDAP 389
+- [x] verify TCP connectivity from WG01 to DC01 on SMB 445
 - [ ] configure the local WireGuard peer to initiate outbound to AWS
-- [ ] configure `PersistentKeepalive` for CGNAT resilience
+- [ ] configure `PersistentKeepalive = 25` for CGNAT resilience
 - [ ] add the AWS VPC CIDR route on `MADAR-DC01` via `MADAR-WG01`
 - [ ] restrict Windows Firewall rules to required AD/DNS traffic instead of disabling the firewall globally
 
@@ -156,6 +168,7 @@
 - [x] GPO configuration/application evidence
 - [x] local allowed/denied authorization evidence
 - [ ] CGNAT/public-IP preflight evidence
+- [ ] local WireGuard gateway readiness evidence (target: one consolidated terminal screenshot)
 - [ ] WireGuard architecture/ADR
 - [ ] WireGuard handshake / routed-connectivity evidence
 - [ ] AD protocol validation evidence before connector creation
@@ -171,6 +184,15 @@
 - [ ] offboarding proof
 - [ ] audit proof
 - [ ] final cost/cleanup proof
+
+### Screenshot discipline from C1 onward
+- [ ] C1 local gateway: one consolidated terminal evidence screenshot
+- [ ] C2 AWS hub: one console/network screenshot plus one WireGuard handshake screenshot
+- [ ] C3 AD network validation: one consolidated AWS-side protocol test screenshot
+- [ ] C4 identity foundation: connector Active + Identity Center source screenshot(s)
+- [ ] D/E/F/G: capture only screenshots proving permission mapping, login/MFA, and intentional allow/deny boundaries
+- [ ] H/I: lifecycle revocation and CloudTrail evidence
+- [ ] K: final zero-running-cost / cleanup evidence
 
 ## K — Cleanup / continuity
 - [ ] delete AD Connector when no longer required
