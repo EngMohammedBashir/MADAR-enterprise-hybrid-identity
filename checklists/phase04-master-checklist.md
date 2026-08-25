@@ -1,5 +1,7 @@
 # Phase 04 Master Checklist
 
+> **Checkpoint:** Hybrid network path is proven. Resume at AD Connector credential validation.
+
 ## A — Planning
 - [x] business problem approved
 - [x] current-state identity model documented
@@ -7,112 +9,121 @@
 - [x] local workforce groups defined
 - [ ] AWS permission matrix finalized
 - [ ] MFA/session strategy finalized for selected identity source
-- [x] exact AWS integration cost guardrail defined for the lab
+- [x] AWS integration cost guardrail defined
 - [x] cleanup/continuity strategy documented
 
 ## B — Corporate directory lab
 - [x] create `MADAR-DC01` in VMware
 - [x] install Windows Server 2025
-- [x] configure static IP for the domain controller
-- [x] install/configure AD DS
-- [x] configure DNS
+- [x] configure static IP `192.168.14.10`
+- [x] install/configure AD DS and DNS
 - [x] create `madar.local` forest/domain
-- [x] create organizational units
-- [x] create workforce security groups
+- [x] create departmental OUs
+- [x] create workforce Global Security Groups
 - [x] create synthetic employee accounts
 - [x] automate repeat user creation with PowerShell
 - [x] verify group membership
 - [x] capture directory baseline evidence
 
-## B2 — Domain client and local authorization validation
+## B2 — Domain client / local authorization
 - [x] create `MADAR-CLIENT01`
 - [x] install Windows 11 Pro
 - [x] point client DNS to `MADAR-DC01`
-- [x] validate DNS connectivity to `madar.local`
-- [x] join `MADAR-CLIENT01` to `madar.local`
+- [x] join client to `madar.local`
 - [x] validate domain-user login
-- [x] create and link `GPO-IT-Security`
-- [x] verify GPO application on the client
-- [x] verify Domain firewall policy
-- [x] create departmental SMB shares for authorization testing
+- [x] create/link `GPO-IT-Security`
+- [x] verify GPO and Domain firewall enforcement
+- [x] create departmental SMB shares
 - [x] verify allowed IT-share access for `GG-IT`
 - [x] verify denied Finance-share access for the IT user
-- [x] capture positive and negative local authorization evidence
+- [x] capture positive/negative authorization evidence
 
-## C0 — Hybrid connectivity decision / preflight
-- [x] confirm AWS Region target: `us-east-1`
-- [x] confirm AWS account identity
-- [x] confirm account is not currently in AWS Organizations
-- [x] confirm IAM Identity Center is not currently enabled
-- [x] inspect current AWS credits / billing state before new resources
-- [x] identify local WAN environment as Zain 5G behind CGNAT
-- [x] verify router WAN address is private (`10.x.x.x`)
-- [x] verify public IPv4 changes after router reconnect/restart
-- [x] reject classic static-IP AWS Site-to-Site VPN path for this lab
-- [x] select self-managed routed WireGuard tunnel as the lab connectivity path
-- [x] document why the selected design is a CGNAT-aware lab workaround rather than a claim that it is AWS managed Site-to-Site VPN
+## C0 — Hybrid connectivity decision
+- [x] target Region `us-east-1`
+- [x] inspect AWS account / billing state
+- [x] identify Zain 5G CGNAT constraint
+- [x] verify local WAN address is private and public IPv4 is not stable
+- [x] reject classic static Customer Gateway design for this lab
+- [x] select outbound-initiated self-managed WireGuard
+- [x] document design honestly as EC2 WireGuard, not AWS managed Site-to-Site VPN
 
-## C1 — Local WireGuard routing layer
-- [x] repurpose the retired `MADAR-LEGACY01` VM as `MADAR-WG01`
-- [x] rename Ubuntu hostname to `madar-wg01`
-- [x] keep `MADAR-WG01` on the same VMware network as `MADAR-DC01`
-- [x] verify VMware DHCP pool before assigning a static address
-- [x] assign static IPv4 `192.168.14.30/24`
-- [x] verify default gateway `192.168.14.2`
-- [x] verify SSH connectivity on the static address
-- [x] install WireGuard / wireguard-tools
-- [x] enable persistent IPv4 forwarding
-- [x] create WireGuard keypair locally
-- [x] protect the private key with mode `600`
-- [x] verify `MADAR-WG01` can reach `MADAR-DC01` on `192.168.14.10`
-- [x] verify `madar.local` resolves through `MADAR-DC01`
-- [x] verify TCP connectivity from WG01 to DC01 on DNS 53
-- [x] verify TCP connectivity from WG01 to DC01 on Kerberos 88
-- [x] verify TCP connectivity from WG01 to DC01 on LDAP 389
-- [x] verify TCP connectivity from WG01 to DC01 on SMB 445
-- [ ] configure the local WireGuard peer to initiate outbound to AWS
-- [ ] configure `PersistentKeepalive = 25` for CGNAT resilience
-- [ ] add the AWS VPC CIDR route on `MADAR-DC01` via `MADAR-WG01`
-- [ ] restrict Windows Firewall rules to required AD/DNS traffic instead of disabling the firewall globally
+## C1 — Local WireGuard router
+- [x] repurpose retired Ubuntu VM as `MADAR-WG01`
+- [x] hostname `madar-wg01`
+- [x] static IPv4 `192.168.14.30/24`
+- [x] default gateway `192.168.14.2`
+- [x] SSH connectivity validated
+- [x] WireGuard installed
+- [x] persistent IPv4 forwarding enabled
+- [x] keypair created; private key protected with mode `600`
+- [x] local reachability to `MADAR-DC01`
+- [x] `madar.local` DNS resolution validated
+- [x] local TCP checks: 53 / 88 / 389 / 445
+- [x] configure local WireGuard peer to AWS
+- [x] configure `PersistentKeepalive = 25`
+- [x] route AWS VPC CIDR through the tunnel using WireGuard `AllowedIPs`
+- [x] retain Windows firewall rather than disabling it globally
 
-## C2 — AWS network and WireGuard hub
-- [ ] create Phase 04 VPC with a non-overlapping CIDR
-- [ ] create one public subnet for the EC2 WireGuard hub
-- [ ] create two private subnets in different Availability Zones for AD Connector
-- [ ] create/associate Internet Gateway for the public subnet
-- [ ] configure public and private route tables intentionally
-- [ ] launch a small Ubuntu EC2 instance as `WG-HUB`
-- [ ] assign a public IPv4 / Elastic IP as required for the lab
-- [ ] install WireGuard on `WG-HUB`
-- [ ] enable IPv4 forwarding on `WG-HUB`
-- [ ] disable EC2 source/destination check
-- [ ] restrict the EC2 Security Group to the required WireGuard and VPC traffic
-- [ ] add private-subnet route: `192.168.14.0/24` -> `WG-HUB` ENI / appliance target
-- [ ] establish the WireGuard handshake between `MADAR-WG01` and `WG-HUB`
-- [ ] verify bidirectional routed connectivity between the AWS VPC and `192.168.14.0/24`
+## C2 — AWS network / WireGuard hub
+- [x] create `MADAR-P04-VPC` with `10.50.0.0/16`
+- [x] create public subnet for `WG-HUB`
+- [x] create two private subnets in different AZs for AD Connector
+- [x] attach/configure Internet Gateway and route tables
+- [x] launch Ubuntu EC2 `MADAR-P04-WG-HUB`
+- [x] assign stable AWS-side public endpoint for the lab
+- [x] install/configure WireGuard on `WG-HUB`
+- [x] enable Linux IPv4 forwarding
+- [x] configure EC2 as a routing appliance
+- [x] configure Security Group for WireGuard UDP/51820
+- [x] allow required VPC transit traffic from `10.50.0.0/16` to the routing appliance
+- [x] configure forwarding/NAT rules for AWS ↔ on-prem routed traffic
+- [x] persist required iptables rules with `netfilter-persistent`
+- [x] add private-subnet route `192.168.14.0/24` → `WG-HUB`
+- [x] verify both private subnets use the intended route table
+- [x] establish WireGuard handshake
+- [x] verify tunnel ping `10.200.0.2` ↔ `10.200.0.1`
+- [x] verify transfer counters increase in both directions
 
-## C3 — AD network validation before AD Connector
-- [ ] verify AWS-side reachability to `MADAR-DC01` (`192.168.14.10`)
-- [ ] verify DNS connectivity to the domain controller on TCP/UDP 53
-- [ ] verify Kerberos connectivity on TCP/UDP 88
-- [ ] verify LDAP connectivity on TCP/UDP 389
-- [ ] verify time/NTP is suitable for Kerberos
-- [ ] verify DNS resolution for `madar.local` from the AWS-side test path
-- [ ] do not create AD Connector until the above tests pass
+## C3 — AWS → on-prem AD network validation
+- [x] verify AWS-side reachability to `MADAR-DC01` (`192.168.14.10`)
+- [x] verify `madar.local` DNS resolution through `192.168.14.10`
+- [x] verify TCP DNS 53
+- [x] verify TCP Kerberos 88
+- [x] verify TCP LDAP 389
+- [x] verify TCP SMB 445
+- [x] verify additional AD ports TCP 135 / 464 / 3268 during diagnostics
+- [x] use packet capture to prove AWS-originated TCP/53 reaches DC01
+- [x] prove DC01 TCP/53 reply returns to AWS
+- [x] prove network failure is no longer the AD Connector blocker
+- [ ] complete explicit UDP 53 / 88 / 389 validation if required by final acceptance evidence
+- [ ] verify time/NTP suitability for Kerberos before final connector acceptance
 
-## C4 — AWS identity foundation
-- [ ] create/verify AWS Organizations state as required for the selected IAM Identity Center deployment
-- [ ] verify management-account ownership requirements for the selected AD integration path
+## C4 — AD Connector
+- [x] create dedicated `svc-adconnector` account
+- [x] confirm service account exists and is enabled
+- [x] point test Connector at `madar.local` / `192.168.14.10`
+- [x] capture initial `DNS unavailable` failure
+- [x] troubleshoot route tables / ENIs / Security Groups / packet path
+- [x] correct AWS hub VPC-transit Security Group boundary
+- [x] progress Connector failure from DNS connectivity to authentication
+- [x] delete failed Connector at session close to control cost
+- [ ] validate `svc-adconnector` account state: enabled / unlocked / password not expired
+- [ ] reset credential to a known strong lab password if needed
+- [ ] independently validate the credential before another Connector attempt
+- [ ] re-check Directory Service pricing/free-trial eligibility
+- [ ] create fresh AD Connector
+- [ ] wait for `Stage = Active`
+- [ ] capture AD Connector Active evidence
+
+## D — IAM Identity Center foundation
+- [ ] create/verify AWS Organizations state as required
+- [ ] verify management-account ownership requirements
 - [ ] enable/verify IAM Identity Center in `us-east-1`
-- [ ] re-check current Directory Service pricing/free-trial eligibility immediately before creation
-- [ ] create AD Connector only after network validation
-- [ ] point AD Connector at `madar.local` / `192.168.14.10`
-- [ ] wait for AD Connector status to become Active and troubleshoot only from validated routing/DNS/AD facts
-- [ ] select AD Connector / Active Directory as the IAM Identity Center identity source
-- [ ] verify intended users/groups are visible/usable through the selected integration
+- [ ] select the intended AD/Directory integration identity source
+- [ ] verify intended users/groups are visible and usable
 
-## D — Workforce authorization
-- [ ] finalize mapping from local AD groups to AWS workforce roles
+## E — Workforce authorization
+- [ ] finalize AD-group → AWS-role mapping
 - [ ] create Cloud Admin permission set
 - [ ] create DevOps permission set
 - [ ] create Developer permission set
@@ -121,89 +132,85 @@
 - [ ] configure account assignments
 - [ ] verify group-to-permission mappings
 
-## E — Authentication
+## F — Authentication / SSO
 - [ ] validate AWS access portal
-- [ ] validate SSO login using a `madar.local` identity
+- [ ] validate SSO with a `madar.local` identity
 - [ ] configure/validate MFA
 - [ ] verify temporary sessions
-- [ ] verify no employee long-lived AWS access keys are required
+- [ ] verify workforce users need no long-lived AWS access keys
 - [ ] configure/test AWS CLI SSO
 
-## F — Positive AWS access tests
+## G — Positive / negative AWS authorization tests
 - [ ] Cloud Admin allowed action
 - [ ] DevOps allowed action
 - [ ] Developer allowed action
-- [ ] Security allowed read/investigation action
+- [ ] Security read/investigation action
 - [ ] Auditor read-only action
-
-## G — Negative AWS access tests
 - [ ] Developer IAM-admin action denied
 - [ ] Auditor write/delete denied
 - [ ] Security infrastructure-admin action denied
-- [ ] role boundary failure captured as expected evidence
 
 ## H — Identity lifecycle
-- [ ] onboarding test
-- [ ] group/role-change test
-- [ ] offboarding/disable test
+- [ ] Joiner test
+- [ ] Mover / group-role change test
+- [ ] Leaver / disable test
 - [ ] access revocation verified
 
 ## I — Audit
 - [ ] CloudTrail Event History reviewed
-- [ ] workforce principal/session identified in audit data
-- [ ] allowed action evidence captured
-- [ ] denied action evidence captured where available
-- [ ] temporary session evidence captured
+- [ ] workforce principal/session identified
+- [ ] allowed action evidence
+- [ ] denied action evidence where available
+- [ ] temporary-session evidence
 
-## J — Evidence and documentation
-- [x] domain-controller verification
-- [x] OU structure evidence
-- [x] security-group evidence
-- [x] manual user-creation evidence
-- [x] PowerShell user-automation evidence
-- [x] group-membership verification
-- [x] Windows client baseline evidence
-- [x] domain-join evidence
-- [x] domain-user login evidence
-- [x] GPO configuration/application evidence
+## J — Evidence / documentation
+- [x] local AD / OU / users / groups evidence
+- [x] domain client / login / GPO evidence
 - [x] local allowed/denied authorization evidence
-- [ ] CGNAT/public-IP preflight evidence
-- [ ] local WireGuard gateway readiness evidence (target: one consolidated terminal screenshot)
-- [ ] WireGuard architecture/ADR
-- [ ] WireGuard handshake / routed-connectivity evidence
-- [ ] AD protocol validation evidence before connector creation
-- [ ] final AWS architecture diagram
+- [x] local WireGuard readiness evidence
+- [x] AWS VPC/subnet evidence
+- [x] AWS route-table evidence
+- [x] WireGuard tunnel evidence
+- [x] AWS-to-on-prem AD connectivity evidence
+- [x] README updated to current hybrid milestone
+- [x] CURRENT-STATE updated to current hybrid milestone
+- [x] evidence index updated
 - [ ] AD Connector Active screenshot
 - [ ] Identity Center screenshot
-- [ ] permission-set screenshot
-- [ ] account-assignment screenshot
-- [ ] SSO login screenshot
-- [ ] MFA proof
-- [ ] CLI SSO proof
-- [ ] AWS negative-test proof
-- [ ] offboarding proof
-- [ ] audit proof
+- [ ] permission-set / account-assignment screenshots
+- [ ] SSO / MFA / CLI SSO proof
+- [ ] AWS allowed/denied authorization proof
+- [ ] lifecycle/offboarding proof
+- [ ] CloudTrail audit proof
+- [ ] final architecture diagram
 - [ ] final cost/cleanup proof
 
-### Screenshot discipline from C1 onward
-- [ ] C1 local gateway: one consolidated terminal evidence screenshot
-- [ ] C2 AWS hub: one console/network screenshot plus one WireGuard handshake screenshot
-- [ ] C3 AD network validation: one consolidated AWS-side protocol test screenshot
-- [ ] C4 identity foundation: connector Active + Identity Center source screenshot(s)
-- [ ] D/E/F/G: capture only screenshots proving permission mapping, login/MFA, and intentional allow/deny boundaries
-- [ ] H/I: lifecycle revocation and CloudTrail evidence
-- [ ] K: final zero-running-cost / cleanup evidence
-
-## K — Cleanup / continuity
-- [ ] delete AD Connector when no longer required
-- [ ] terminate the temporary EC2 WireGuard hub when no longer required
-- [ ] release public IPv4 / Elastic IP resources that should not remain allocated
-- [ ] remove Phase 04-specific routes/security rules that should not persist
-- [ ] power off `MADAR-WG01` and local identity VMs when not required
-- [x] retain local identity VMs powered off when not required
-- [ ] preserve workforce identity configuration for Phase 05+ only if cost-safe and intentionally required
-- [ ] final AWS Cost Explorer / Bills / resource audit
+## K — Pause / cleanup discipline
+- [x] delete failed AD Connector before pausing
+- [x] stop `MADAR-P04-WG-HUB` EC2 at session close
+- [x] power off local VMs when not required
+- [ ] release public IPv4 / Elastic IP when hybrid work is complete
+- [ ] terminate temporary EC2 hub when no longer required
+- [ ] remove Phase 04-specific routes/security rules when no longer required
+- [ ] final Bills / Cost Explorer / resource audit
 - [ ] verify no paid Phase 04 resource is unintentionally left running
-- [ ] update implementation repository README and CURRENT-STATE
-- [ ] update master transformation repository
+- [ ] update master MADAR transformation repository
 - [ ] Phase 04 closeout decision recorded
+
+---
+
+## Resume checkpoint
+
+```text
+1. Power on MADAR-DC01
+2. Power on MADAR-WG01
+3. Start MADAR-P04-WG-HUB
+4. Verify WireGuard handshake
+5. Verify DNS path to 192.168.14.10
+6. Validate/reset svc-adconnector credential
+7. Test credential
+8. Create AD Connector
+9. Target: Stage = Active
+```
+
+**Do not rebuild the VPC, WireGuard tunnel or routing path unless a regression test proves that layer is broken.**
