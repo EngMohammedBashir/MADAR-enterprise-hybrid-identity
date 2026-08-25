@@ -1,12 +1,12 @@
 # Phase 04 — Current State
 
-**Status:** ACTIVE — LOCAL IDENTITY VALIDATED / CGNAT-AWARE HYBRID PATH SELECTED  
+**Status:** ACTIVE — LOCAL IDENTITY + LOCAL WIREGUARD GATEWAY VALIDATED / AWS HUB NEXT  
 **Date:** 2026-08-25  
 **Primary theme:** Enterprise workforce identity and AWS access governance
 
 ## Starting point
 
-Phase 03 is complete and cleaned up. Phase 04 has a working local identity source and is moving into AWS workforce integration.
+Phase 03 is complete and cleaned up. Phase 04 has a working local identity source and a validated local WireGuard routing gateway. The next execution step is the AWS VPC + EC2 WireGuard hub.
 
 ## Completed local identity baseline
 
@@ -62,13 +62,13 @@ The classic AWS managed Site-to-Site VPN path was therefore not selected for thi
 
 ## Selected lab connectivity architecture
 
-Phase 04 will use a **self-managed routed WireGuard tunnel**:
+Phase 04 uses a **self-managed routed WireGuard tunnel**:
 
 ```text
 MADAR-DC01 (192.168.14.10)
         |
         v
-MADAR-WG01 (lightweight Linux router)
+MADAR-WG01 (192.168.14.30)
         |
         | outbound-initiated WireGuard
         v
@@ -89,6 +89,35 @@ The home side initiates the tunnel outbound, so the local public IPv4 does not n
 This is intentionally documented as **self-managed WireGuard on an EC2 network appliance**, not as AWS managed Site-to-Site VPN.
 
 Decision record: `decisions/ADR-004-cgnat-wireguard-hybrid-connectivity.md`.
+
+## MADAR-WG01 — completed local gateway baseline
+
+The retired Phase 03 Ubuntu VM was intentionally repurposed as the local routing gateway instead of creating another VM on the RAM-constrained workstation.
+
+```text
+MADAR-WG01
+├── Ubuntu 24.04
+├── hostname: madar-wg01
+├── static IPv4: 192.168.14.30/24
+├── default gateway: 192.168.14.2
+├── SSH validated on the static address
+├── WireGuard installed
+├── IPv4 forwarding = 1 and persistent
+├── WireGuard keypair created
+├── private key permissions = 600
+└── UFW left inactive rather than introducing a new firewall layer mid-lab
+```
+
+Validated from `MADAR-WG01` to `MADAR-DC01`:
+
+- ICMP reachability to `192.168.14.10`,
+- `madar.local` DNS resolution through `192.168.14.10`,
+- TCP 53 DNS,
+- TCP 88 Kerberos,
+- TCP 389 LDAP,
+- TCP 445 SMB.
+
+The local gateway is therefore ready for its AWS peer configuration. The final `wg0` peer block is intentionally deferred until the AWS peer public key and endpoint exist.
 
 ## Mandatory gate before AD Connector
 
@@ -114,6 +143,10 @@ This avoids paying for Directory Service while basic network prerequisites are s
 - IAM Identity Center is not currently enabled,
 - AWS credits/billing were checked before provisioning new Phase 04 resources.
 
+## Evidence discipline
+
+From this point forward each major gate has an explicit screenshot checkpoint. The local WireGuard gateway will be evidenced with one consolidated terminal screenshot showing hostname, static IP, persistent IPv4 forwarding, WireGuard installation/key-file permissions, DC reachability, DNS resolution, and AD TCP port checks. No private WireGuard key will be captured or committed.
+
 ## Current execution gates
 
 ```text
@@ -121,7 +154,8 @@ Gate 1  Business problem / current-state identity assessment       COMPLETE
 Gate 2  VMware Windows Server + AD DS lab baseline                COMPLETE
 Gate 3  Workforce users/groups + local authorization validation   COMPLETE
 Gate 4  CGNAT-aware hybrid connectivity architecture              COMPLETE
-Gate 5  MADAR-WG01 + AWS WG-HUB routed tunnel                     NEXT
+Gate 5A Local MADAR-WG01 readiness                                COMPLETE
+Gate 5B AWS VPC + EC2 WG-HUB + WireGuard handshake                NEXT
 Gate 6  AD protocol validation from AWS side                      PENDING
 Gate 7  AD Connector + IAM Identity Center                        PENDING
 Gate 8  Permission sets / account assignments                     PENDING
@@ -137,7 +171,8 @@ Gate 13 Cost/resource cleanup + closeout                          PENDING
 The local workstation has limited RAM. Local VMs will be powered on only when required:
 
 - `MADAR-CLIENT01` stays off during tunnel construction,
-- `MADAR-DC01` and lightweight `MADAR-WG01` run together for hybrid testing,
+- `MADAR-DC01` runs only when validating AD/DNS connectivity,
+- `MADAR-WG01` is the local gateway during tunnel construction,
 - all local VMs are powered off when not needed.
 
 ## Cost hold point
@@ -146,4 +181,4 @@ The architecture is designed for short-lived lab execution. Before AD Connector 
 
 ## Next action
 
-Create the lightweight local `MADAR-WG01` router, then build the AWS VPC and EC2 `WG-HUB`, establish the outbound WireGuard tunnel, configure bidirectional routing, and validate DNS/Kerberos/LDAP connectivity to `MADAR-DC01` before creating any AD Connector.
+Build the Phase 04 AWS VPC and EC2 `WG-HUB`, establish the outbound WireGuard tunnel with `MADAR-WG01`, configure bidirectional routing, then validate DNS/Kerberos/LDAP connectivity to `MADAR-DC01` from the AWS side before creating any AD Connector.
