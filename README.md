@@ -401,7 +401,6 @@ Direct AWS-account workforce SSO through IAM Identity Center remains a future pr
 ├── docs/
 ├── evidence/
 ├── identity-model/
-├── policies/
 ├── runbooks/
 └── tests/
 ```
