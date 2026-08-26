@@ -4,6 +4,12 @@ This folder contains the proof behind the Phase 04 engineering claims.
 
 > Evidence is treated as proof, not decoration. Each screenshot should answer one engineering question.
 
+## 🗺️ Architecture overview
+
+![MADAR hybrid identity architecture](MADAR-hybrid-identity-architecture.png)
+
+`MADAR-hybrid-identity-architecture.png` is the portfolio-facing visual summary of the **implemented and validated** Phase 04 architecture. It is a diagram, not primary evidence; the screenshots below provide the underlying proof.
+
 ## 1 — Local identity / Active Directory
 
 | Evidence file | What it proves |
