@@ -1,332 +1,312 @@
-# Phase 04 — WireGuard Hybrid Execution Plan
+# Phase 04 — Hybrid Identity Execution Record
 
-This document is the implementation handoff for the AWS portion of Phase 04. It exists to prevent missed prerequisites, out-of-order resource creation, unnecessary cost, and repeated VM start/stop cycles.
+This document began as the implementation plan for the AWS portion of Phase 04. It now records the **actual executed path**, including the architecture change from the original IAM Identity Center branch to the validated Amazon WorkSpaces hybrid identity proof.
 
-## Locked lab architecture
+## Final implemented architecture
 
 ```text
 HOME / VMware                                 AWS / us-east-1
 
-MADAR-DC01                                    Phase 04 VPC
-192.168.14.10                                 non-overlapping CIDR
+MADAR-DC01                                    MADAR-P04-VPC
+192.168.14.10                                 10.50.0.0/16
 AD DS + DNS                                        |
      |                                             |
      v                                             v
 MADAR-WG01  ===== encrypted WireGuard =====   EC2 WG-HUB
-Linux router       outbound initiated          Linux network appliance
-     |                                             |
-     +---- 192.168.14.0/24                        +---- route back to home CIDR
+192.168.14.30  10.200.0.2 <-> 10.200.0.1     Linux network appliance
                                                    |
                                                    v
                                              AD Connector
+                                             d-90667da553
                                                    |
                                                    v
-                                           IAM Identity Center
+                                            WorkSpaces
+                                       WSAMZN-I0F8R2FL
+                                           10.50.13.89
                                                    |
                                                    v
-                                      Groups -> Permission Sets
-                                                   |
-                                                   v
-                                    SSO / MFA / CLI / CloudTrail
+                                           sara.ibrahim
 ```
 
-## Naming plan
+## Naming / addressing record
 
 Local:
 
-- `MADAR-DC01` — existing domain controller, `192.168.14.10`
-- `MADAR-CLIENT01` — existing Windows 11 domain client
-- `MADAR-WG01` — new lightweight Linux WireGuard router
+- `MADAR-DC01` — domain controller / DNS, `192.168.14.10`
+- `MADAR-CLIENT01` — Windows 11 domain client
+- `MADAR-WG01` — WireGuard router, `192.168.14.30`
 
 AWS:
 
-- VPC: `MADAR-P04-VPC`
-- public subnet: `MADAR-P04-PUBLIC-A`
-- private subnet A: `MADAR-P04-PRIVATE-A`
-- private subnet B: `MADAR-P04-PRIVATE-B`
-- Internet Gateway: `MADAR-P04-IGW`
-- EC2: `MADAR-P04-WG-HUB`
-- Security Group: `MADAR-P04-WG-SG`
-- AD Connector: `MADAR-P04-AD-CONNECTOR`
+- VPC: `MADAR-P04-VPC` — `10.50.0.0/16`
+- WG-HUB EC2: `i-029deb16c4c36fd11`
+- AD Connector: `d-90667da553`
+- WorkSpaces subnet: `subnet-05e3c3e6fea490ac1` — `10.50.13.0/24` — `us-east-1c`
+- WorkSpace: `ws-49q8s94dl`
+- WorkSpace computer: `WSAMZN-I0F8R2FL`
+- WorkSpace private IP: `10.50.13.89`
 
-Exact CIDRs and AZs must be chosen only after confirming they do not overlap `192.168.14.0/24` or any other network that must route through the tunnel.
+## Execution rules that remained important
 
-## Execution rules
-
-1. Do not create AD Connector before routed AD protocol tests pass.
-2. Do not disable the Windows Firewall globally as the normal solution.
-3. Do not call the self-managed WireGuard design `AWS Site-to-Site VPN` in documentation.
+1. Do not create directory integration before routed AD protocol tests pass.
+2. Do not disable Windows Firewall globally as the normal solution.
+3. Do not call the self-managed WireGuard design `AWS Site-to-Site VPN`.
 4. Do not expose `MADAR-DC01` directly to the public Internet.
-5. Do not leave EC2, public IPv4, or Directory Service resources running after acceptance unless explicitly required.
-6. Capture evidence at success gates before moving on.
-7. Keep `MADAR-CLIENT01` powered off until an end-user SSO test actually needs it.
+5. Treat the EC2 hub as a routing appliance; verify forwarding, SGs, routes and source/destination check.
+6. Capture evidence at each gate before moving on.
+7. Do not upgrade the AWS account merely to force an optional portfolio architecture branch.
+8. Stop/delete paid temporary resources after validation.
 
-## Stage 1 — Local `MADAR-WG01`
+## Stage 1 — Local directory baseline — COMPLETE
 
-### Build
+Validated:
 
-- create a minimal Ubuntu Server Linux VM,
-- allocate only the RAM needed for routing/WireGuard,
-- attach it to the same VMware network as `MADAR-DC01`,
-- identify an unused IP on `192.168.14.0/24`,
-- configure that IP statically,
-- verify it can reach `192.168.14.10`,
-- install WireGuard,
-- enable `net.ipv4.ip_forward=1`.
+- AD DS + DNS,
+- `madar.local`,
+- OUs and users,
+- Global Security Groups,
+- `MADAR-CLIENT01` domain join,
+- Sara domain login,
+- GPO / Domain firewall,
+- IT share allowed,
+- Finance share denied.
 
-### Hold point
+## Stage 2 — CGNAT-aware hybrid network — COMPLETE
 
-Before configuring Windows routes, verify the chosen `MADAR-WG01` IPv4 is correct and stable.
+The home lab is behind Zain 5G CGNAT. `MADAR-WG01` therefore initiates the tunnel outbound toward the AWS EC2 endpoint.
 
-## Stage 2 — AWS network
+Required network-appliance properties were implemented:
 
-### Build
+- `net.ipv4.ip_forward = 1`,
+- EC2 source/destination check disabled,
+- VPC route to `192.168.14.0/24`,
+- WireGuard AllowedIPs,
+- Security Group allowance for VPC transit traffic,
+- FORWARD / NAT rules,
+- `PersistentKeepalive = 25` on the local side.
 
-- use `us-east-1`,
-- create a dedicated non-overlapping VPC,
-- create one public subnet for `WG-HUB`,
-- create two private subnets in different AZs for AD Connector,
-- attach an Internet Gateway,
-- configure the public route table for Internet access,
-- keep AD Connector subnets private,
-- create the Security Group for the WireGuard appliance.
+## Stage 3 — AD protocol validation — COMPLETE
 
-### Evidence
+The AWS side reached `MADAR-DC01` across the tunnel. Diagnostics included DNS, Kerberos, LDAP, SMB and related AD ports.
 
-Capture VPC/subnet/route architecture only after final routing is correct.
+Packet capture was used to prove that Directory Service traffic crossed the EC2 appliance and received replies from the on-premises domain controller.
 
-## Stage 3 — EC2 `WG-HUB`
+## Stage 4 — AD Connector — COMPLETE
 
-### Build
-
-- launch small Ubuntu EC2 in the public subnet,
-- assign a public IPv4 / Elastic IP as required by the chosen lab setup,
-- install WireGuard,
-- enable IPv4 forwarding,
-- disable EC2 source/destination check,
-- configure Security Group inbound for the selected WireGuard UDP port,
-- restrict other inbound access,
-- configure forwarding policy only for required routed networks.
-
-### Critical failure checks
-
-If routed traffic does not pass, verify:
-
-- source/destination check is disabled,
-- Linux IP forwarding is enabled,
-- WireGuard peer AllowedIPs are correct,
-- Security Group/NACL do not block required traffic,
-- route-table targets are correct.
-
-## Stage 4 — WireGuard tunnel
-
-### Local peer behavior
-
-`MADAR-WG01` initiates outbound toward AWS. Configure `PersistentKeepalive` so the CGNAT mapping remains usable.
-
-### Required proof
-
-- WireGuard handshake succeeds,
-- tunnel counters increase in both directions,
-- the AWS peer can reach the local router's tunnel-side path,
-- the local router can reach AWS VPC addresses through the tunnel.
-
-Capture handshake/routing evidence here.
-
-## Stage 5 — Bidirectional network routing
-
-### AWS side
-
-The private-subnet route table used by AD Connector must contain a route for:
-
-`192.168.14.0/24` -> EC2 network-appliance path / ENI target as implemented.
-
-### Local side
-
-`MADAR-DC01` needs a persistent route for the AWS VPC CIDR through `MADAR-WG01`.
-
-Do not hard-code the next hop in documentation until the actual unused static IP assigned to `MADAR-WG01` is known.
-
-### Required proof
-
-Traffic must return through the same routed tunnel path. Verify both directions rather than relying on one successful ping.
-
-## Stage 6 — AD protocol validation
-
-Before AD Connector creation, prove from the AWS-side routed path:
-
-- network reachability to `192.168.14.10`,
-- DNS TCP/UDP 53,
-- Kerberos TCP/UDP 88,
-- LDAP TCP/UDP 389,
-- `madar.local` resolves using the local AD DNS,
-- time is sufficiently synchronized for Kerberos.
-
-Only add additional AD ports if the actual integration/test requires them. Avoid unnecessarily broad rules.
-
-### STOP condition
-
-If any core AD protocol test fails, do not create AD Connector. Fix routing/DNS/firewall first.
-
-## Stage 7 — AWS Organizations / IAM Identity Center prerequisites
-
-Before final identity-source configuration:
-
-- confirm current Organizations state,
-- create/configure the Organization only when required by the selected IAM Identity Center model,
-- confirm the account that must own the directory integration,
-- enable IAM Identity Center in `us-east-1`,
-- verify the region/account relationship before connector assignment.
-
-## Stage 8 — AD Connector
-
-Immediately before creation:
-
-- check current Directory Service pricing/free-trial eligibility,
-- confirm the selected two private subnets are in different AZs,
-- confirm `madar.local` and DNS server `192.168.14.10`,
-- use credentials appropriate for AD Connector setup without exposing secrets in GitHub/screenshots,
-- create the connector,
-- wait for `Active`.
-
-If creation fails, troubleshoot using the already-proven network facts rather than recreating resources blindly.
-
-## Stage 9 — IAM Identity Center integration
-
-- select the intended AD/Directory Service identity source,
-- verify MADAR workforce identities/groups can be used,
-- validate the AWS access portal,
-- configure MFA according to the final selected Identity Center strategy,
-- confirm no workforce user requires a long-lived IAM access key.
-
-## Stage 10 — Permission model
-
-Finalize the mapping before creating assignments.
-
-Required permission sets:
-
-- Cloud Admin
-- DevOps
-- Developer
-- Security
-- Auditor
-
-Use groups for assignment wherever practical.
-
-## Stage 11 — Positive and negative tests
-
-Required positive proof:
-
-- Cloud Admin allowed action,
-- DevOps allowed operation,
-- Developer allowed application/development operation,
-- Security allowed read/investigation action,
-- Auditor read-only action.
-
-Required negative proof:
-
-- Developer IAM-admin action denied,
-- Auditor write/delete denied,
-- Security infrastructure-admin action denied.
-
-An intentional `AccessDenied` result is success evidence when it proves least privilege.
-
-## Stage 12 — SSO and CLI
-
-- validate browser SSO,
-- validate MFA,
-- validate temporary sessions,
-- configure AWS CLI SSO,
-- run `aws sso login`,
-- verify CLI caller identity/session uses temporary SSO credentials rather than long-lived workforce keys.
-
-## Stage 13 — Identity lifecycle
-
-Demonstrate:
-
-- Joiner — new/enable identity -> correct group -> access appears,
-- Mover — group/role change -> permissions change,
-- Leaver — disable/remove identity -> future access revoked.
-
-Capture proof of revocation, not only the configuration change.
-
-## Stage 14 — Audit
-
-Use CloudTrail Event History to locate:
-
-- workforce/SSO principal,
-- allowed action,
-- denied action where available,
-- temporary-session activity.
-
-Evidence must avoid exposing session tokens or secrets.
-
-## Stage 15 — Documentation / portfolio
-
-Update:
-
-- architecture diagram,
-- ADR,
-- `README.md`,
-- `CURRENT-STATE.md`,
-- master checklist,
-- evidence index,
-- master MADAR transformation repository.
-
-Explain the CGNAT constraint and the decision to use a self-managed outbound WireGuard path honestly.
-
-## Stage 16 — Cleanup
-
-Delete/terminate/release as appropriate:
-
-- AD Connector,
-- EC2 `WG-HUB`,
-- public IPv4 / Elastic IP,
-- temporary AWS routing/security resources,
-- any other paid Phase 04 resource no longer required.
-
-Then:
-
-- power off local VMs,
-- check Bills / Cost Explorer,
-- verify no unintended Phase 04 paid resources remain,
-- record the closeout decision.
-
-## Screenshot / evidence reminders
-
-Capture evidence at these points:
-
-1. CGNAT/public-IP preflight outcome (if safe and useful; no router secrets),
-2. WireGuard handshake,
-3. AWS-to-AD routed/protocol validation,
-4. AD Connector Active,
-5. IAM Identity Center identity source,
-6. permission sets,
-7. account assignments,
-8. SSO success,
-9. MFA proof,
-10. CLI SSO proof,
-11. allowed action,
-12. denied action,
-13. lifecycle/offboarding revocation,
-14. CloudTrail audit,
-15. final architecture,
-16. final cost/resource cleanup.
-
-## Final acceptance
-
-Phase 04 is complete only when:
+The Connector troubleshooting sequence was:
 
 ```text
-Corporate AD identity
-        + routed hybrid connectivity
-        + IAM Identity Center SSO/MFA
-        + group-based temporary AWS permissions
-        + positive authorization proof
-        + negative authorization proof
-        + CLI SSO
-        + lifecycle revocation
-        + CloudTrail audit
-        + cleanup verification
-        = ACCEPTED
+DNS unavailable
+      ↓
+fix VPC transit / forwarding path
+      ↓
+Invalid credentials
+      ↓
+validate/reset svc-adconnector
+      ↓
+AD Connector Active
+```
+
+Final Connector:
+
+```text
+Directory ID : d-90667da553
+Domain       : madar.local
+Stage        : Active
+```
+
+## Stage 5 — WorkSpaces network preparation — COMPLETE
+
+WorkSpaces registration required compatible subnets in different supported AZs. A new private subnet was created:
+
+```bash
+AWS_PAGER="" aws ec2 create-subnet \
+  --region us-east-1 \
+  --vpc-id vpc-0371464657f10efb1 \
+  --cidr-block 10.50.13.0/24 \
+  --availability-zone us-east-1c \
+  --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=MADAR-P04-WorkSpaces-Private-C}]'
+```
+
+It was associated with the existing hybrid route table:
+
+```bash
+AWS_PAGER="" aws ec2 associate-route-table \
+  --region us-east-1 \
+  --route-table-id rtb-08c2d8c0ea2bac825 \
+  --subnet-id subnet-05e3c3e6fea490ac1
+```
+
+This preserved the route:
+
+```text
+192.168.14.0/24 -> AWS WireGuard routing appliance
+```
+
+## Stage 6 — WorkSpaces directory registration — COMPLETE
+
+The AD Connector was registered with Amazon WorkSpaces using supported subnets in `us-east-1b` and `us-east-1c`.
+
+Final state:
+
+```text
+Registered : True
+Status     : Active
+Domain     : madar.local
+```
+
+## Stage 7 — Dedicated WorkSpaces OU — COMPLETE
+
+Created:
+
+```text
+OU=WorkSpaces,OU=MADAR,DC=madar,DC=local
+```
+
+The `svc-adconnector` service account was delegated the required computer-object permissions in that OU, and the WorkSpaces directory target OU was updated accordingly.
+
+## Stage 8 — WorkSpace provisioning — COMPLETE
+
+Selected:
+
+```text
+Bundle       : Standard Windows — Free tier eligible
+Mode         : AutoStop after 1 hour
+Root volume  : 80 GB
+User volume  : 10 GB
+User         : sara.ibrahim
+```
+
+Created:
+
+```text
+WorkSpace ID : ws-49q8s94dl
+Computer     : WSAMZN-I0F8R2FL
+Private IP   : 10.50.13.89
+```
+
+## Stage 9 — Domain join proof — COMPLETE
+
+On the domain controller:
+
+```powershell
+Get-ADComputer -Filter * `
+  -SearchBase "OU=WorkSpaces,OU=MADAR,DC=madar,DC=local" `
+  -Properties DNSHostName,Enabled |
+Select-Object Name,DNSHostName,Enabled,DistinguishedName |
+Format-Table -AutoSize
+```
+
+Observed the AWS WorkSpace computer object in the on-premises AD.
+
+## Stage 10 — Domain-user cloud authentication — COMPLETE
+
+Inside the WorkSpace:
+
+```powershell
+whoami
+hostname
+$env:USERDNSDOMAIN
+```
+
+Observed:
+
+```text
+madar\sara.ibrahim
+WSAMZN-I0F8R2FL
+MADAR.LOCAL
+```
+
+This proves the AWS-managed desktop consumed the on-premises corporate identity.
+
+## Stage 11 — Healthy dependency baseline — COMPLETE
+
+From the WorkSpace:
+
+```powershell
+Test-NetConnection 192.168.14.10 -Port 53
+Resolve-DnsName madar.local -Server 192.168.14.10
+```
+
+Observed TCP/53 success and DNS resolution from source `10.50.13.89`.
+
+## Stage 12 — Controlled failure — COMPLETE
+
+On `MADAR-WG01`:
+
+```bash
+sudo wg show
+sudo wg-quick down wg0
+```
+
+The same WorkSpace tests then failed:
+
+```text
+TcpTestSucceeded : False
+Resolve-DnsName  : timeout
+```
+
+## Stage 13 — Recovery — COMPLETE
+
+Restored:
+
+```bash
+sudo wg-quick up wg0
+sudo wg show
+```
+
+The WorkSpace again reached `192.168.14.10:53` and resolved `madar.local`.
+
+## Original IAM Identity Center branch — DEFERRED
+
+The initial execution plan included AWS Organizations, IAM Identity Center, permission sets, MFA, CLI SSO and CloudTrail workforce-session proof.
+
+Those steps were **not executed** because the account remained intentionally on the AWS Free Plan and the project did not perform an account-plan upgrade or force Organizations changes solely to satisfy the initial architecture.
+
+Future production extension:
+
+```text
+Corporate identity
+      ↓
+IAM Identity Center
+      ↓
+MFA / SSO
+      ↓
+Permission sets
+      ↓
+Temporary AWS sessions
+```
+
+## Evidence captured
+
+- AD Connector Active
+- WorkSpace computer object in on-prem AD
+- WorkSpace domain-user authentication
+- healthy WorkSpace-to-DC baseline
+- controlled WireGuard failure
+- successful recovery
+- earlier WireGuard, routing, AD/GPO and local authorization evidence
+
+## Closeout — IN PROGRESS
+
+After documentation review:
+
+```text
+Stop/delete WorkSpace
+      ↓
+Deregister WorkSpaces directory
+      ↓
+Delete AD Connector if not reused
+      ↓
+Terminate temporary WG-HUB EC2
+      ↓
+Release public address if unused
+      ↓
+Remove temporary Phase 04 network artifacts as appropriate
+      ↓
+Power off local VMs
+      ↓
+Bills / Credits / residual-resource audit
+      ↓
+PHASE 04 ACCEPTED
 ```
