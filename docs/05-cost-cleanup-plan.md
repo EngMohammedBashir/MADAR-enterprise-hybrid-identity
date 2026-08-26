@@ -1,94 +1,162 @@
-# Phase 04 Cost & Cleanup Plan
+# Phase 04 Cost & Cleanup Closeout
 
-## Cost objective
+## 🏁 Final status
 
-Keep the identity project inexpensive while still demonstrating a realistic hybrid enterprise pattern.
+**Status:** ✅ COMPLETE  
+The temporary AWS infrastructure used for Phase 04 was removed after validation and evidence capture.
 
-## Account guardrail
+## 💰 Cost objective
 
-The AWS account remained on the **AWS Free Plan** throughout the lab.
+The lab was designed to demonstrate a realistic hybrid enterprise identity pattern while controlling temporary AWS spend.
 
-The project explicitly rejected any step that would require upgrading the account merely to continue an architectural branch.
+The AWS account remained within the agreed account/cost guardrails throughout execution. Paid or potentially billable resources were retained only long enough to complete the required engineering tests and capture evidence.
 
-At the WorkSpaces validation checkpoint:
+## 🧾 Final Cost Explorer checkpoint
+
+At final closeout:
 
 ```text
-Credits issued              : $180.00
-Estimated used              : $3.53
-Estimated remaining         : $176.47
-Amazon WorkSpaces           : listed as an applicable credit product
-Selected WorkSpaces bundle  : Free tier eligible
+Gross month-to-date Usage/Fee : $ 2.1355 USD
+AWS credits applied           : $-2.1355 USD
+Calculated net                : $ 0.0000 USD
 ```
 
-## Cost-sensitive components used
+These values are **account-level month-to-date Cost Explorer figures**. They must not be interpreted as a precise Phase 04-only cost allocation because other MADAR lab activity occurred in the same account during the month.
 
-### AWS Directory Service AD Connector
+The cleanup audit below is the authoritative proof that the temporary Phase 04 resources were removed.
 
-The Connector was used only for the hybrid directory integration and must not be left running indefinitely after acceptance unless a later phase explicitly needs it.
+## 🧹 Executed cleanup sequence
 
-### EC2 WireGuard routing appliance
+The actual destructive closeout followed dependency order:
 
-The EC2 `MADAR-P04-WG-HUB` is a temporary network appliance used to terminate the routed WireGuard tunnel. Stop it whenever the hybrid path is not under test.
+```text
+Amazon WorkSpace
+      ↓
+WorkSpaces directory registration
+      ↓
+AD Connector
+      ↓
+WG-HUB EC2 / Elastic IP
+      ↓
+Hybrid routes / Security Group
+      ↓
+Subnets / custom route tables
+      ↓
+Internet Gateway
+      ↓
+Phase 04 VPC
+```
 
 ### Amazon WorkSpaces
 
-Only one WorkSpace was created:
+Historical resource:
 
 ```text
 WorkSpace ID : ws-49q8s94dl
-Bundle       : Standard Windows — Free tier eligible
-Running mode : AutoStop after 1 hour
 User         : sara.ibrahim
+Private IP   : 10.50.13.89
 ```
 
-The purpose was end-to-end identity validation, not permanent VDI hosting.
+Termination request:
 
-No NAT Gateway was created for the WorkSpaces test.
+```bash
+AWS_PAGER="" aws workspaces terminate-workspaces \
+  --region us-east-1 \
+  --terminate-workspace-requests '[{"WorkspaceId":"ws-49q8s94dl"}]' \
+  --output json
+```
 
-## Pause procedure
+Successful API response:
 
-When pausing the lab:
+```json
+{
+  "FailedRequests": []
+}
+```
+
+The WorkSpace progressed through `TERMINATING` and subsequently disappeared from `describe-workspaces` output.
+
+### WorkSpaces registration / AD Connector
+
+The directory was deregistered only after the WorkSpace disappeared. AD Connector `d-90667da553` was then deleted and later disappeared from Directory Service inventory.
+
+### WG-HUB EC2 and Elastic IP
+
+Historical routing appliance:
 
 ```text
-Amazon WorkSpace        -> Stop
-AWS WG-HUB EC2          -> Stop
-MADAR-DC01 VMware VM    -> Shutdown
-MADAR-WG01 VMware VM    -> Shutdown
-MADAR-CLIENT01          -> Keep powered off unless needed
-AD Connector            -> no Stop state; retain only until final cleanup decision
+Instance ID : i-029deb16c4c36fd11
+Private IP  : 10.50.1.132
+Public IP   : 34.228.95.241
 ```
 
-## Final cleanup sequence
+Final EC2 audit showed:
 
-After documentation/evidence review:
+```text
+State : terminated
+```
 
-1. verify all required screenshots are committed,
-2. stop and then delete the test WorkSpace if no further proof is needed,
-3. deregister the WorkSpaces directory when safe,
-4. delete AD Connector when no later phase depends on it,
-5. terminate the temporary WireGuard EC2 routing appliance,
-6. release any public IPv4 / Elastic IP that is no longer required,
-7. remove Phase 04-specific route-table entries and temporary security rules if the VPC will not be reused,
-8. delete temporary subnets only after checking dependencies,
-9. power off local VMware VMs,
-10. review Bills / Credits / Cost Explorer,
-11. verify no unintended Phase 04 paid resource remains.
+The Phase 04 Elastic IP was released. A subsequent lookup of its allocation ID returned `InvalidAllocationID.NotFound`.
 
-## Continuity after Phase 04
+### Network cleanup
 
-`MADAR-DC01` and the local identity VMs may be retained **powered off** so later phases can reuse the same corporate identity story without rebuilding the directory.
+The Phase 04-specific hybrid route was removed before deleting dependent network resources.
 
-AWS-side resources should remain only when their continuity value is greater than their ongoing cost.
+The following were then removed:
 
-## Final audit checklist
+- WG-HUB Security Group,
+- private/public subnet associations,
+- Phase 04 subnets,
+- custom private route table,
+- custom public route table,
+- Internet Gateway attachment,
+- Internet Gateway,
+- `MADAR-P04-VPC`.
 
-Review:
+Final VPC verification returned:
 
-- WorkSpaces Personal resources,
-- registered WorkSpaces directories,
-- Directory Service resources,
-- EC2 / ENIs / public IPv4 introduced for the hybrid router,
-- route tables and Security Groups created for Phase 04,
-- CloudWatch/logging resources created by the lab,
-- unexpected IAM users or long-lived access keys,
-- Bills / Credits after cleanup.
+```text
+InvalidVpcID.NotFound
+```
+
+This is the expected successful post-deletion state.
+
+## 🔎 Final AWS inventory audit
+
+Final live checks confirmed:
+
+```text
+Amazon WorkSpaces          none
+Directory Service          none
+WG-HUB EC2                 terminated
+Elastic IPs                none
+MADAR Phase 04 VPC         none
+```
+
+The terminated EC2 record can remain visible temporarily in EC2 history. A `terminated` instance is not a running compute resource.
+
+## 📸 Final closeout evidence
+
+![Phase 04 final closeout](../evidence/phase04-final-closeout-evidence.png)
+
+The screenshot combines the resource audit with the final Cost Explorer checkpoint.
+
+## 🏠 Local lab continuity
+
+The local VMware machines may remain **powered off** for future MADAR phases:
+
+```text
+MADAR-DC01
+MADAR-WG01
+MADAR-CLIENT01
+```
+
+They preserve the corporate identity storyline without creating ongoing AWS infrastructure cost.
+
+## 🔐 Cleanup rule
+
+For future rebuilds:
+
+> Capture proof first. Delete from the application/service layer downward. Verify deletion after every destructive step. Never treat an empty CLI response as an error when the command is explicitly checking that a deleted resource no longer exists.
+
+The full rebuild and destructive cleanup command sequence is retained in the project runbook.
