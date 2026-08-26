@@ -2,7 +2,7 @@
 
 ## Implemented local directory model
 
-The local Active Directory lab now contains five synthetic employees, one per representative department.
+The local Active Directory lab contains five synthetic employees, one per representative department.
 
 | Department | User | Logon name | AD security group |
 |---|---|---|---|
@@ -26,6 +26,7 @@ madar.local
     ├── Sales
     ├── Users
     ├── Computers
+    ├── WorkSpaces
     └── Groups
         ├── GG-Management
         ├── GG-IT
@@ -34,11 +35,11 @@ madar.local
         └── GG-Sales
 ```
 
-The departmental OU answers **where the identity or computer is organized**. The security group answers **which authorization set the identity belongs to**. These are deliberately separate concepts.
+The departmental OU answers **where an identity is organized**. The security group answers **which authorization set the user belongs to**. The dedicated `WorkSpaces` OU is for cloud-desktop computer objects, not for moving the employee identity itself.
 
 ## Local authorization proof
 
-The IT identity was used to prove group-based authorization before AWS integration:
+The IT identity proved group-based authorization before AWS integration:
 
 ```text
 Sara Ibrahim
@@ -48,36 +49,49 @@ GG-IT
    └── Finance share  → denied
 ```
 
-This is the source-side proof that identity and group membership have operational meaning rather than existing only as directory objects.
+## AWS consumption proof
 
-## AWS authorization model — next gate
-
-The local departmental groups are the **source identity model**. AWS permission sets will be designed separately around AWS job functions and least privilege. A one-to-one mapping from every AD department to an AWS administrator role is not assumed.
-
-Target flow:
+Sara's identity remained in the existing IT OU:
 
 ```text
-Employee
-   ↓
-Corporate identity / group membership
-   ↓
-Supported AWS identity integration
-   ↓
-IAM Identity Center
-   ↓
-AWS permission set
-   ↓
-AWS account assignment
-   ↓
-Temporary SSO session
+CN=Sara Ibrahim,OU=IT,OU=MADAR,DC=madar,DC=local
 ```
 
-Planned AWS access personas remain Cloud Admin, DevOps, Developer, Security and Auditor; the exact mapping from the implemented source identities/groups will be finalized during the AWS integration gate.
-
-## Lifecycle model
+The AWS-managed WorkSpace computer joined separately into:
 
 ```text
-Joiner  → create/enable identity → group → AWS access
-Mover   → change group/assignment → permission change
-Leaver  → disable/remove → AWS access revoked
+CN=WSAMZN-I0F8R2FL,OU=WorkSpaces,OU=MADAR,DC=madar,DC=local
 ```
+
+This separation mirrors a real directory:
+
+```text
+User object     = Sara's corporate identity
+Computer object = Sara's managed workstation
+```
+
+The validated cloud flow is:
+
+```text
+sara.ibrahim
+   ↓
+Amazon WorkSpaces
+   ↓
+AD Connector
+   ↓
+madar.local
+   ↓
+Successful domain authentication
+```
+
+## Service account
+
+`svc-adconnector` is a dedicated integration identity used by AWS Directory Service / WorkSpaces for directory operations such as joining WorkSpaces computers into the delegated OU.
+
+It is not an employee account and is not used for interactive workforce login.
+
+## Future authorization extension
+
+The original plan included IAM Identity Center permission sets. That branch was not implemented under the Free Plan account guardrail.
+
+For a future production organization, the same source identities/groups can be extended toward centralized AWS-account SSO and temporary role sessions. That future model is documented separately and is not claimed as completed in this lab.
