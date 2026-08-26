@@ -1,23 +1,47 @@
 # Positive Access Tests
 
-Each test must record:
+## Implemented positive tests
+
+### Local authorization
 
 ```text
-Identity
-Group
-Permission set
-Action
-Expected result
-Observed result
-Evidence
+Identity : sara.ibrahim
+Group    : GG-IT
+Action   : Access IT departmental share
+Expected : Allowed
+Observed : Allowed
+Evidence : evidence/Sara-IT-Share-Access-Success.png
 ```
 
-Planned examples:
+### AWS-managed cloud desktop authentication
 
-- Cloud Admin performs approved administrative action.
-- DevOps Engineer performs approved infrastructure/deployment action.
-- Developer performs scoped workload action.
-- Security Team reads security/audit data.
-- Auditor reads allowed inventory/evidence.
+```text
+Identity : madar\sara.ibrahim
+Service  : Amazon WorkSpaces Personal
+Computer : WSAMZN-I0F8R2FL
+Expected : Corporate domain authentication succeeds
+Observed : Success
+Evidence : evidence/workspaces-hybrid-ad-authentication-validation.png
+```
 
-A successful login alone does not satisfy these tests; an authorized AWS action must be observed.
+### Hybrid WorkSpace-to-AD connectivity
+
+```text
+Source   : 10.50.13.89
+Target   : 192.168.14.10:53
+Expected : TCP succeeds and madar.local resolves
+Observed : Success
+Evidence : evidence/workspaces-to-onprem-baseline-connectivity.png
+```
+
+### Recovery
+
+After an intentional WireGuard outage, the tunnel was restored and the same TCP/DNS tests succeeded again.
+
+Evidence:
+
+`evidence/workspaces-vpn-failure-recovery-validation.png`
+
+## Future direct AWS-account authorization tests
+
+Cloud Admin / DevOps / Developer / Security / Auditor permission-set tests remain future production-extension work because IAM Identity Center was not implemented under the Free Plan account guardrail.
