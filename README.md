@@ -5,6 +5,12 @@
 > **✅ STATUS: COMPLETED • VALIDATED • FAILURE-TESTED • CLEANED UP**  
 > Corporate Active Directory → encrypted hybrid routing → AWS Directory Service AD Connector → Amazon WorkSpaces → domain-user authentication → controlled failure/recovery → resource and cost closeout.
 
+<p align="center">
+  <img src="evidence/MADAR-hybrid-identity-architecture.png" alt="MADAR Phase 04 Enterprise Hybrid Identity architecture" width="100%">
+</p>
+
+<p align="center"><strong>Validated implementation architecture — not a hypothetical target design.</strong></p>
+
 MADAR already migrated its representative legacy workload in Phase 03. Phase 04 addresses the next enterprise problem: **how cloud-hosted workforce environments can consume an existing corporate identity source without creating a second disconnected user directory.**
 
 The result is a reproducible hybrid-identity lab with positive tests, negative tests, failure injection, recovery validation, operational runbooks, architecture decisions, evidence and controlled cleanup.
@@ -68,6 +74,8 @@ The WorkSpace was not treated as merely another Windows VM. It was the final AWS
 ---
 
 ## 🌐 Implemented architecture
+
+The hero diagram above is the visual map of the validated implementation. The packet path is summarized below for command-line readability:
 
 ```text
 HOME / VMware                                      AWS / us-east-1
