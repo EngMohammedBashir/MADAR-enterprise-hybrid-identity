@@ -1,17 +1,91 @@
-# MADAR — Enterprise Identity & Workforce Access
+# 🏢 MADAR — Enterprise Identity & Workforce Access
 
 ## Phase 04 of the MADAR Cloud Transformation
 
-> **Status: ACTIVE — HYBRID NETWORK VALIDATED / AD CONNECTOR AUTHENTICATION NEXT**  
-> Corporate Active Directory → routed WireGuard hybrid connectivity → AWS Directory integration → IAM Identity Center → SSO/MFA → permission sets → lifecycle/audit validation.
+> **Status: HYBRID IDENTITY VALIDATED — WORKSPACES END-TO-END PROOF COMPLETE / CLEANUP PENDING**  
+> Corporate Active Directory → WireGuard hybrid connectivity → AWS Directory Service AD Connector → Amazon WorkSpaces → domain-user authentication → failure/recovery validation.
 
-MADAR has already migrated its representative legacy workload in Phase 03. Phase 04 solves the next enterprise problem: **how employees securely access AWS through centralized workforce identity instead of individual long-lived IAM credentials.**
+MADAR already migrated its representative legacy workload in Phase 03. Phase 04 addresses the next enterprise problem: **how employees use centralized corporate identity to access cloud-hosted workforce environments without creating a second disconnected identity store.**
+
+The original plan included IAM Identity Center / SSO. During execution, that branch was intentionally not pursued because the lab was constrained to the AWS Free Plan and must not require an account-plan upgrade or Organizations changes simply to force an architectural diagram. The validated end-to-end consumer of the existing corporate directory became **Amazon WorkSpaces Personal**.
 
 ---
 
-## What is working now
+## 🎯 What this project proves
 
-The project has moved beyond a local Active Directory demo. A routed hybrid path now connects the VMware corporate network to an AWS VPC through a self-managed WireGuard network appliance.
+A synthetic MADAR employee defined only in the on-premises Active Directory can authenticate to an AWS-managed Windows desktop while the directory remains on-premises.
+
+```text
+👩 Sara Ibrahim
+   sara.ibrahim@madar.local
+          │
+          │ corporate AD credentials
+          ▼
+☁️ Amazon WorkSpaces Personal
+   WSAMZN-I0F8R2FL
+   10.50.13.89
+          │
+          ▼
+🔌 AWS Directory Service — AD Connector
+   d-90667da553
+          │
+          ▼
+🔐 Routed WireGuard hybrid network
+          │
+          ▼
+🏢 MADAR-DC01
+   192.168.14.10
+   AD DS + DNS
+   madar.local
+```
+
+The WorkSpace was not treated as "just another Windows VM." It was used as the final consumer that proved the entire hybrid identity chain.
+
+---
+
+## ✅ Current milestone
+
+| Layer | Status | Validation |
+|---|---|---|
+| Active Directory / DNS | ✅ Complete | `madar.local` on `MADAR-DC01` |
+| Workforce users/groups | ✅ Complete | departmental synthetic users + Global Security Groups |
+| Domain client + GPO | ✅ Complete | `MADAR-CLIENT01` join, user login, GPO and firewall validation |
+| Local least privilege | ✅ Complete | Sara allowed to IT share and denied Finance share |
+| CGNAT-aware hybrid design | ✅ Complete | outbound-initiated self-managed WireGuard |
+| AWS VPC/private routing | ✅ Complete | `10.50.0.0/16` with route to `192.168.14.0/24` |
+| WireGuard tunnel | ✅ Complete | handshake, counters, routed traffic |
+| AWS → AD protocols | ✅ Complete | DNS / Kerberos / LDAP / SMB diagnostics |
+| AD Connector | ✅ Active | `d-90667da553` |
+| WorkSpaces directory registration | ✅ Complete | `madar.local` registered to WorkSpaces |
+| Dedicated WorkSpaces OU | ✅ Complete | `OU=WorkSpaces,OU=MADAR,DC=madar,DC=local` |
+| WorkSpace domain join | ✅ Verified | `WSAMZN-I0F8R2FL.madar.local` created in on-prem AD |
+| Domain-user cloud login | ✅ Verified | `madar\sara.ibrahim` authenticated to WorkSpaces |
+| WorkSpace → on-prem DNS/DC path | ✅ Verified | source `10.50.13.89` reached `192.168.14.10:53` |
+| VPN failure test | ✅ Verified | TCP/53 failed and DNS timed out after `wg0` shutdown |
+| VPN recovery test | ✅ Verified | TCP/53 and DNS recovered after `wg0` restart |
+| Final cost/resource cleanup | ⏳ Pending | stop/delete temporary cloud resources after documentation |
+
+---
+
+## 🧠 Why Client01 and WorkSpaces both exist
+
+`MADAR-CLIENT01` and Amazon WorkSpaces look similar because both are Windows clients, but they prove different stages.
+
+```text
+MADAR-CLIENT01
+  = local corporate endpoint
+  = proves AD join, domain login, GPO and local authorization
+
+Amazon WorkSpaces
+  = AWS-managed cloud desktop
+  = proves AWS can consume the on-prem directory end to end
+```
+
+Client01 proved the **directory itself** worked before AWS integration. WorkSpaces proved the **hybrid identity architecture** worked after AWS integration.
+
+---
+
+## 🌐 Implemented hybrid architecture
 
 ```text
 HOME / VMware                                      AWS / us-east-1
@@ -24,160 +98,265 @@ AD DS + DNS                                             |
 MADAR-WG01   ===== encrypted WireGuard =====      MADAR-P04-WG-HUB
 192.168.14.30      10.200.0.2 <-> 10.200.0.1      EC2 network appliance
                                                        |
-                                                       v
-                                                Private subnets
+                                                       +--> AD Connector
+                                                       |    d-90667da553
                                                        |
-                                                       v
-                                                  AD Connector
-                                                       |
-                                                       v
-                                             IAM Identity Center
-                                                       |
-                                                       v
-                                        Groups + Permission Sets
-                                                       |
-                                                       v
-                                           SSO + MFA + CLI
+                                                       +--> Amazon WorkSpaces
+                                                            WSAMZN-I0F8R2FL
+                                                            10.50.13.89
+                                                            user: sara.ibrahim
 ```
 
-### Current milestone
+The home lab sits behind Zain 5G carrier-grade NAT. A classic static Customer Gateway model was therefore not appropriate for this lab. `MADAR-WG01` initiates the WireGuard tunnel outbound toward a stable AWS-side EC2 endpoint.
 
-| Layer | Status | Proof |
-|---|---|---|
-| Active Directory / DNS | ✅ Complete | `madar.local` on `MADAR-DC01` |
-| Workforce users/groups | ✅ Complete | departmental users + Global Security Groups |
-| Domain client + GPO | ✅ Complete | join, login and firewall/GPO validation |
-| Local least privilege | ✅ Complete | allowed IT share + denied Finance share |
-| CGNAT-aware hybrid design | ✅ Complete | outbound-initiated WireGuard architecture |
-| AWS VPC/private subnets | ✅ Complete | dedicated `10.50.0.0/16` network |
-| WireGuard handshake | ✅ Complete | bidirectional tunnel counters + tunnel ping |
-| AWS → on-prem routing | ✅ Complete | route to `192.168.14.0/24` through WG-HUB |
-| AWS → AD/DNS traffic | ✅ Complete | DNS TCP/53 request/reply observed |
-| AD Connector authentication | 🟡 Next fix | latest failure is invalid credentials, not networking |
-| IAM Identity Center / SSO | ⏳ Pending | begins after Connector becomes Active |
+> This project intentionally documents the VPN as **self-managed WireGuard on EC2**, not AWS managed Site-to-Site VPN.
 
 ---
 
-## Why this architecture exists
+## 🔌 AD Connector integration
 
-The home lab uses Zain 5G and sits behind carrier-grade NAT (CGNAT). The router does not own a stable public IPv4 suitable for a classic static-address Customer Gateway design.
-
-Instead of pretending that constraint does not exist, the lab uses a **self-managed routed WireGuard VPN**:
+The dedicated service account was created as:
 
 ```text
-CGNAT problem
-     ↓
-Inbound home endpoint is unreliable
-     ↓
-MADAR-WG01 initiates outbound
-     ↓
-AWS EC2 provides the stable tunnel endpoint
-     ↓
-Private routed access to madar.local
+svc-adconnector
 ```
 
-This design keeps the domain controller private and creates a real routed path for centralized identity integration.
+The account was verified as enabled, unlocked, non-expired and configured with a non-expiring lab password. No credential is stored in this repository.
 
-> This is intentionally documented as **self-managed WireGuard on an EC2 network appliance**, not AWS managed Site-to-Site VPN.
-
-Architecture decision: [`decisions/ADR-004-cgnat-wireguard-hybrid-connectivity.md`](decisions/ADR-004-cgnat-wireguard-hybrid-connectivity.md)  
-Execution plan: [`docs/12-wireguard-hybrid-execution-plan.md`](docs/12-wireguard-hybrid-execution-plan.md)  
-Current checkpoint: [`CURRENT-STATE.md`](CURRENT-STATE.md)
-
----
-
-## The troubleshooting story
-
-The strongest part of this phase is not that everything worked on the first attempt. It did not.
-
-### Incident 1 — AD Connector reported DNS unavailable
-
-The first Directory Service attempts failed with:
+The Connector initially failed in two different layers:
 
 ```text
-Connectivity issues detected:
-DNS unavailable (TCP port 53) for IP 192.168.14.10
+Attempt 1
+DNS unavailable / TCP 53
+        ↓
+network troubleshooting
+        ↓
+Attempt 2
+Invalid credentials
+        ↓
+service-account validation/reset
+        ↓
+Fresh Connector
+Stage = Active ✅
 ```
 
-Rather than repeatedly recreating the connector, the path was tested layer by layer:
+This is important because the failure evolution proves the troubleshooting process moved from networking to authentication rather than hiding all failures behind repeated resource recreation.
+
+---
+
+## 🖥️ Amazon WorkSpaces validation
+
+The registered WorkSpaces directory uses:
 
 ```text
-AD Connector ENIs
-      ↓
-Private subnet association
-      ↓
-Route table
-      ↓
-WG-HUB Security Group
-      ↓
-EC2 network appliance
-      ↓
-Linux forwarding / NAT
-      ↓
-WireGuard
-      ↓
-MADAR-WG01
-      ↓
-MADAR-DC01:53
+Directory ID : d-90667da553
+Domain       : madar.local
+Directory    : AD Connector
+Registered   : True
+Status       : Active
+Target OU    : OU=WorkSpaces,OU=MADAR,DC=madar,DC=local
 ```
 
-`tcpdump` was used on the EC2 appliance interfaces to determine whether packets reached the router and whether they entered the tunnel.
+A dedicated WorkSpaces OU was created and `svc-adconnector` was delegated the computer-object permissions required for the WorkSpaces domain join.
 
-The key defect was an AWS-side security boundary: the `WG-HUB` Security Group admitted WireGuard UDP/51820 but did not admit the required VPC transit traffic from `10.50.0.0/16`.
-
-After correcting the VPC-side path, AWS-originated DNS traffic reached `192.168.14.10` and the domain controller replied. A complete TCP handshake was observed.
-
-### Incident 2 — failure moved to credentials
-
-The next AD Connector attempt no longer failed on DNS. It progressed to:
+The test WorkSpace used:
 
 ```text
-Configuration issues detected:
-Invalid credentials (bad username/password)
+WorkSpace ID : ws-49q8s94dl
+User         : sara.ibrahim
+Computer     : WSAMZN-I0F8R2FL
+Private IP   : 10.50.13.89
+Bundle       : Standard Windows, Free tier eligible
+Mode         : AutoStop after 1 hour
 ```
 
-That is a useful engineering checkpoint: **the network layer is now proven and the remaining blocker is authentication.**
+### Domain join proof
 
-The next session will validate/reset the dedicated `svc-adconnector` account and retry the connector without redesigning the working network.
+On `MADAR-DC01`:
+
+```powershell
+Get-ADComputer -Filter * `
+  -SearchBase "OU=WorkSpaces,OU=MADAR,DC=madar,DC=local" `
+  -Properties DNSHostName,Enabled |
+Select-Object Name,DNSHostName,Enabled,DistinguishedName
+```
+
+Observed:
+
+```text
+Name            : WSAMZN-I0F8R2FL
+DNSHostName     : WSAMZN-I0F8R2FL.madar.local
+Enabled         : True
+DistinguishedName:
+CN=WSAMZN-I0F8R2FL,OU=WorkSpaces,OU=MADAR,DC=madar,DC=local
+```
+
+### End-user authentication proof
+
+Inside the WorkSpace:
+
+```powershell
+whoami
+hostname
+$env:USERDNSDOMAIN
+ipconfig | findstr /i "IPv4 DNS"
+```
+
+Observed:
+
+```text
+madar\sara.ibrahim
+WSAMZN-I0F8R2FL
+MADAR.LOCAL
+IPv4 Address : 10.50.13.89
+```
+
+That closes the end-to-end identity chain:
+
+```text
+On-prem AD user
+      ↓
+AD Connector
+      ↓
+Amazon WorkSpaces
+      ↓
+Domain joined Windows desktop
+      ↓
+Successful user authentication ✅
+```
 
 ---
 
-## Hybrid networking details
+## 💥 Failure and recovery test
 
-| Purpose | Network / address |
-|---|---|
-| Local corporate LAN | `192.168.14.0/24` |
-| Domain Controller / DNS | `192.168.14.10` |
-| Local WireGuard router | `192.168.14.30` |
-| WireGuard transit | `10.200.0.0/30` |
-| AWS tunnel peer | `10.200.0.1` |
-| Local tunnel peer | `10.200.0.2` |
-| AWS VPC | `10.50.0.0/16` |
-| WireGuard | UDP `51820` |
+The strongest validation was not only a successful login. The routed identity dependency was intentionally broken and restored.
 
-The private-subnet route table contains a route for `192.168.14.0/24` through the EC2 routing appliance.
+### Healthy baseline
 
-The EC2 instance is deliberately treated as a **network appliance**. That means the design must account for source/destination checks, Linux IPv4 forwarding, Security Groups, WireGuard AllowedIPs, route tables and forwarding/NAT behavior—not merely whether the instance itself can ping the tunnel peer.
+From Sara's WorkSpace:
+
+```powershell
+Test-NetConnection 192.168.14.10 -Port 53
+Resolve-DnsName madar.local -Server 192.168.14.10
+```
+
+Observed:
+
+```text
+SourceAddress    : 10.50.13.89
+TcpTestSucceeded : True
+madar.local      : 192.168.14.10
+```
+
+### Injected failure
+
+On `MADAR-WG01`:
+
+```bash
+sudo wg show
+sudo wg-quick down wg0
+```
+
+The same WorkSpace tests then produced:
+
+```text
+TcpTestSucceeded : False
+Resolve-DnsName  : timeout
+```
+
+### Recovery
+
+The tunnel was restored:
+
+```bash
+sudo wg-quick up wg0
+sudo wg show
+```
+
+The WorkSpace again returned:
+
+```text
+TcpTestSucceeded : True
+madar.local      : 192.168.14.10
+```
+
+The final operational story is therefore:
+
+```text
+Healthy ✅
+   ↓
+WireGuard intentionally stopped 💥
+   ↓
+WorkSpace-to-AD connectivity lost ❌
+   ↓
+WireGuard restored 🔧
+   ↓
+TCP/DNS connectivity recovered ✅
+```
 
 ---
 
-## Local workforce model
+## 🛠️ Important commands
 
-| Department | Synthetic employee | AD security group |
-|---|---|---|
-| Management | Ahmed Ali (`ahmed.ali`) | `GG-Management` |
-| IT | Sara Ibrahim (`sara.ibrahim`) | `GG-IT` |
-| Finance | Omar Hassan (`omar.hassan`) | `GG-Finance` |
-| HR | Noura Saleh (`noura.saleh`) | `GG-HR` |
-| Sales | Khalid Mansour (`khalid.mansour`) | `GG-Sales` |
+### AWS subnet verification
 
-These identities are synthetic and exist only for the lab.
+```bash
+AWS_PAGER="" aws ec2 describe-subnets \
+  --region us-east-1 \
+  --filters "Name=vpc-id,Values=vpc-0371464657f10efb1" \
+  --query 'Subnets[*].[SubnetId,CidrBlock,AvailabilityZone,AvailabilityZoneId]' \
+  --output table
+```
 
-Local authorization has already been proven: the IT identity can access the intended IT share and is denied access to the Finance share.
+### Hybrid route verification
+
+```bash
+AWS_PAGER="" aws ec2 describe-route-tables \
+  --region us-east-1 \
+  --route-table-ids rtb-08c2d8c0ea2bac825 \
+  --query 'RouteTables[0].{Subnets:Associations[*].SubnetId,HybridRoute:Routes[?DestinationCidrBlock==`192.168.14.0/24`]}' \
+  --output json
+```
+
+### AD Connector service-account state
+
+```powershell
+Get-ADUser svc-adconnector -Properties Enabled,LockedOut,PasswordExpired,PasswordNeverExpires |
+Select-Object SamAccountName,Enabled,LockedOut,PasswordExpired,PasswordNeverExpires
+```
+
+### WorkSpaces OU computer query
+
+```powershell
+Get-ADComputer -Filter * `
+  -SearchBase "OU=WorkSpaces,OU=MADAR,DC=madar,DC=local" `
+  -Properties DNSHostName,Enabled |
+Select-Object Name,DNSHostName,Enabled,DistinguishedName |
+Format-Table -AutoSize
+```
+
+### WorkSpace hybrid baseline/recovery test
+
+```powershell
+Test-NetConnection 192.168.14.10 -Port 53
+Resolve-DnsName madar.local -Server 192.168.14.10
+```
+
+### WireGuard failure/recovery controls
+
+```bash
+sudo wg show
+sudo wg-quick down wg0
+sudo wg-quick up wg0
+```
 
 ---
 
-## Evidence highlights
+## 📸 Evidence highlights
+
+### AD Connector active
+
+![AD Connector Active](evidence/ad-connector-active-success.png)
 
 ### WireGuard tunnel
 
@@ -187,110 +366,79 @@ Local authorization has already been proven: the IT identity can access the inte
 
 ![AWS to on-prem AD connectivity](evidence/phase04-aws-to-onprem-ad-connectivity-evidence.png)
 
-### AWS routing
+### WorkSpace computer object created in on-prem AD
 
-![AWS route tables](evidence/AWS-Route-Tables-Validation.png)
+![WorkSpaces domain join verification](evidence/workspaces-onprem-ad-domain-join-verified.png)
 
-### Domain controller
+### On-prem AD user authenticated to AWS WorkSpaces
 
-![Domain controller verification](evidence/Domain-Controller-Verification.png)
+![WorkSpaces hybrid AD authentication](evidence/workspaces-hybrid-ad-authentication-validation.png)
 
-### Workforce group membership
+### Healthy WorkSpace-to-AD baseline
 
-![AD security group membership verification](evidence/AD-Security-Group-Membership-Verification.png)
+![WorkSpaces baseline connectivity](evidence/workspaces-to-onprem-baseline-connectivity.png)
 
-### Domain join
+### Injected VPN failure
 
-![CLIENT01 domain join success](evidence/CLIENT01-Domain-Join-Success.png)
+![WorkSpaces VPN failure](evidence/workspaces-to-onprem-vpn-failure-test.png)
+
+### VPN recovery validation
+
+![WorkSpaces VPN recovery](evidence/workspaces-vpn-failure-recovery-validation.png)
 
 ### Local least-privilege proof
 
-Allowed IT access:
-
 ![Sara IT share access success](evidence/Sara-IT-Share-Access-Success.png)
-
-Denied Finance access:
 
 ![Sara Finance access denied](evidence/Sara-Finance-Access-Denied.png)
 
-See [`evidence/README.md`](evidence/README.md) for the evidence map and what each screenshot proves.
+See [`evidence/README.md`](evidence/README.md) for the complete evidence map.
 
 ---
 
-## Phase objective
+## 💰 Cost discipline
 
-Phase 04 closes only after the project demonstrates:
+This account remained on the **AWS Free Plan**. The project explicitly avoided upgrading the account simply to enable a different identity architecture.
 
-- centralized workforce identity,
-- group-based AWS authorization,
-- IAM Identity Center,
-- SSO and MFA,
-- temporary AWS credentials,
-- permission sets and least privilege,
-- positive and negative AWS access tests,
-- console and CLI SSO,
-- onboarding / role-change / offboarding workflows,
-- CloudTrail audit evidence,
-- cost-aware cleanup.
-
-## Execution path
+At the WorkSpaces launch checkpoint:
 
 ```text
-Local AD/client validation                       COMPLETE
-      ↓
-CGNAT/public-IP preflight                        COMPLETE
-      ↓
-WireGuard architecture decision                  COMPLETE
-      ↓
-MADAR-WG01 + AWS WG-HUB                          COMPLETE
-      ↓
-WireGuard handshake                              COMPLETE
-      ↓
-AWS → on-prem routed DNS/AD path                 COMPLETE
-      ↓
-AD Connector credential validation               NEXT
-      ↓
-AD Connector Active
-      ↓
-AWS Organizations / IAM Identity Center
-      ↓
-Permission Sets + account assignments
-      ↓
-SSO + MFA + temporary sessions
-      ↓
-AWS CLI SSO
-      ↓
-Positive + negative authorization tests
-      ↓
-Joiner / mover / leaver
-      ↓
-CloudTrail audit
-      ↓
-Evidence + cost/resource cleanup
-      ↓
-PHASE 04 ACCEPTED
+AWS credit pool          : $180.00 issued
+Estimated remaining      : $176.47
+Estimated usage           : $3.53
+Amazon WorkSpaces         : listed as an applicable credit product
+Selected WorkSpaces bundle: Free tier eligible
 ```
 
-Detailed checklist: [`checklists/phase04-master-checklist.md`](checklists/phase04-master-checklist.md)
+The test WorkSpace used `AutoStop` and only one synthetic user. No NAT Gateway was created for this validation.
+
+Temporary compute and local VMs are stopped when not being tested. Final deletion and billing review remain part of cleanup.
 
 ---
 
-## Cost discipline
+## ⚖️ Architecture decision: why IAM Identity Center was not forced
 
-This is a portfolio lab, not a permanently running environment.
+The initial architecture assumed:
 
-At the latest pause point:
+```text
+AD → AD Connector → IAM Identity Center → SSO/MFA → Permission Sets
+```
 
-- the failed AD Connector was deleted,
-- the EC2 `WG-HUB` was stopped,
-- local VMware VMs can be powered off,
-- persistent storage/public-address costs remain part of the cleanup review.
+That path was **not executed** in this Free Plan lab because it would have required account/organization changes that were outside the cost/account guardrails. Instead of upgrading the account merely to satisfy the initial diagram, the project preserved the validated corporate directory and proved real AWS consumption through WorkSpaces.
 
-Paid resources are kept alive only long enough to validate a gate and capture evidence.
+This is an engineering trade-off, not a hidden failure:
+
+```text
+Original goal      : centralized workforce SSO into AWS accounts
+Lab constraint     : no Free Plan upgrade / no forced Organizations change
+Validated outcome  : hybrid corporate AD consumed by AWS WorkSpaces
+```
+
+The IAM Identity Center architecture remains a future production extension for an account where the required organizational prerequisites are intentionally available.
 
 ---
 
-## Repository structure
+## 📂 Repository structure
 
 ```text
 .
@@ -307,18 +455,19 @@ Paid resources are kept alive only long enough to validate a gate and capture ev
 └── tests/
 ```
 
-## MADAR journey
+## 🚀 MADAR journey
 
 ```text
 Phase 01  Cloud Foundation                     COMPLETE
 Phase 02  Serverless Event Processing          COMPLETE
 Phase 03  Legacy Migration & Data Center Exit  COMPLETE
-Phase 04  Enterprise Identity & Workforce      ACTIVE
-          ├── Local AD/client                   COMPLETE
-          ├── Hybrid design                     COMPLETE
-          ├── WireGuard tunnel                  COMPLETE
-          ├── AWS → AD network path             COMPLETE
-          └── AD Connector authentication       NEXT
+Phase 04  Enterprise Identity & Workforce      HYBRID IDENTITY VALIDATED
+          ├── Local AD / client                 COMPLETE
+          ├── WireGuard hybrid network          COMPLETE
+          ├── AD Connector                      ACTIVE
+          ├── WorkSpaces domain join            VERIFIED
+          ├── Domain-user cloud authentication  VERIFIED
+          └── Failure / recovery                VERIFIED
 Phase 05  Application Modernization            FUTURE
 ```
 
