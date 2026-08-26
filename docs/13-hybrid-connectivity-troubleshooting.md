@@ -2,35 +2,33 @@
 
 ## Why this document exists
 
-This is the troubleshooting record for the hardest networking checkpoint in Phase 04.
+This is the troubleshooting record for the hardest networking and identity checkpoints in Phase 04.
 
-The goal is not to preserve every command. The goal is to preserve the **reasoning model** that turned a vague AWS Directory Service failure into a specific, testable diagnosis.
+The goal is not to preserve every command. The goal is to preserve the **reasoning model** that turned vague AWS Directory Service failures into specific, testable diagnoses and then proved the dependency with a controlled outage.
 
-## The symptom
+## Failure chain
 
-AWS AD Connector repeatedly failed with:
+The project encountered three meaningful layers:
+
+```text
+1. AD Connector -> DNS unavailable
+2. AD Connector -> Invalid credentials
+3. WorkSpaces dependency -> intentional VPN outage
+```
+
+Each was diagnosed separately.
+
+## Incident 1 — AD Connector reported DNS unavailable
+
+Symptom:
 
 ```text
 DNS unavailable (TCP port 53) for IP 192.168.14.10
 ```
 
-At first glance this could mean many things:
+Possible causes included DNS service, Windows firewall, VPC route, subnet association, EC2 network-appliance configuration, WireGuard AllowedIPs, Linux forwarding, Security Groups, NACLs or return path.
 
-- DNS service down,
-- Windows firewall,
-- bad VPC route,
-- wrong subnet association,
-- EC2 routing appliance misconfiguration,
-- WireGuard routing/AllowedIPs,
-- Linux forwarding,
-- Security Group/NACL,
-- return-path failure.
-
-Changing all of these at once would make the result impossible to explain.
-
-## The diagnostic model
-
-Think of the packet like a parcel moving through checkpoints:
+The packet was treated like a parcel moving through checkpoints:
 
 ```text
 AD Connector ENI
@@ -51,106 +49,157 @@ WireGuard tunnel
       ↓
 MADAR-WG01
       ↓
-Local LAN
-      ↓
 MADAR-DC01:53
       ↓
 Return path
 ```
 
-The question at each step is simple:
+### Key discovery
 
-> Did the packet reach this checkpoint?
+The EC2 `WG-HUB` Security Group originally admitted WireGuard UDP/51820 but did not admit the VPC transit traffic required when the EC2 instance acted as a router.
 
-## Step 1 — Prove the tunnel itself
+After correcting the VPC transit boundary and verifying Linux forwarding/NAT, `tcpdump` showed AWS-originated TCP/53 traffic reach `192.168.14.10` and receive replies.
 
-WireGuard showed:
+Lesson:
 
-- a recent handshake,
-- bidirectional transfer counters,
-- successful tunnel-side ping.
+> A healthy WireGuard handshake proves peer connectivity, not routed workload connectivity.
 
-This proved peer connectivity, but **not** end-to-end routing to Active Directory.
+## Incident 2 — failure moved to credentials
 
-## Step 2 — Prove the local destination
-
-`MADAR-WG01` could reach `MADAR-DC01` and query `madar.local` DNS. TCP checks to core AD services succeeded.
-
-This proved the local Linux router and domain controller could communicate.
-
-## Step 3 — Prove AWS route-table intent
-
-Both private subnets used by Directory Service were verified against the intended private route table.
-
-The route was active:
-
-```text
-192.168.14.0/24 -> MADAR-P04-WG-HUB
-```
-
-This removed "wrong private subnet route table" from the suspect list.
-
-## Step 4 — Use packet capture as a boundary detector
-
-`tcpdump` was run first on `wg0` and then on `ens5` of the EC2 appliance.
-
-During a failing Connector attempt, neither interface initially saw the expected DNS traffic.
-
-That observation was important: there was no reason to keep modifying WireGuard if the packet had not even reached the Linux instance.
-
-## Step 5 — Inspect the AWS security boundary
-
-The AWS-created Directory Service Security Group allowed outbound traffic.
-
-The `WG-HUB` Security Group, however, initially allowed only:
-
-```text
-UDP 51820 from 0.0.0.0/0
-```
-
-That was sufficient for WireGuard peer establishment, but the instance was also being used as a **transit router** for VPC traffic.
-
-The required VPC-side transit allowance was added for the lab network `10.50.0.0/16`.
-
-This is the key lesson:
-
-> A working VPN handshake does not prove that routed workload traffic is allowed to enter the network appliance.
-
-## Step 6 — Verify Linux forwarding / NAT
-
-The EC2 appliance had explicit forwarding rules for AWS-to-on-prem traffic and the return path. The rules were persisted with `netfilter-persistent`.
-
-The local gateway also used the required routing/NAT behavior for the lab topology.
-
-## Step 7 — Re-test and observe real DNS traffic
-
-After the AWS-side transit path was corrected, packet capture showed AWS-originated TCP/53 traffic reach `192.168.14.10` and receive a reply.
-
-A complete TCP handshake was observed.
-
-That was the decisive network proof.
-
-## Step 8 — Read the new failure correctly
-
-The next AD Connector attempt changed from:
-
-```text
-DNS unavailable
-```
-
-to:
+Once networking worked, the Connector failure changed to:
 
 ```text
 Invalid credentials (bad username/password)
 ```
 
-This is not "another networking failure." It is evidence that troubleshooting successfully moved the integration to the next layer.
+That was useful evidence. It showed the network barrier had been removed and the integration reached the authentication layer.
 
-The remaining action is credential validation for the dedicated `svc-adconnector` account.
+The dedicated account was checked:
 
-## What not to do
+```powershell
+Get-ADUser svc-adconnector -Properties Enabled,LockedOut,PasswordExpired,PasswordNeverExpires |
+Select-Object SamAccountName,Enabled,LockedOut,PasswordExpired,PasswordNeverExpires
+```
 
-During this incident, the preferred approach became:
+Validated state:
+
+```text
+Enabled              : True
+LockedOut            : False
+PasswordExpired      : False
+PasswordNeverExpires : True
+```
+
+After credential reset/validation, a fresh Connector reached:
+
+```text
+Stage = Active
+Directory ID = d-90667da553
+```
+
+## WorkSpaces integration lesson
+
+After the Connector became Active, Amazon WorkSpaces was used as a real directory consumer.
+
+WorkSpaces registration required compatible AZs. The existing `us-east-1a` subnet was not offered for the second WorkSpaces subnet choice, so a new private subnet was created in `us-east-1c` and associated with the existing hybrid route table.
+
+This preserved the identity path without redesigning the working tunnel.
+
+## Domain join proof
+
+A dedicated OU was created:
+
+```text
+OU=WorkSpaces,OU=MADAR,DC=madar,DC=local
+```
+
+The WorkSpace computer appeared there as:
+
+```text
+WSAMZN-I0F8R2FL.madar.local
+```
+
+That proved AWS successfully performed the domain-join operation against the on-premises AD.
+
+## End-user authentication proof
+
+Inside the AWS WorkSpace:
+
+```powershell
+whoami
+hostname
+$env:USERDNSDOMAIN
+```
+
+Observed:
+
+```text
+madar\sara.ibrahim
+WSAMZN-I0F8R2FL
+MADAR.LOCAL
+```
+
+This moved the project from "the Connector is green" to **real domain-user authentication in an AWS-managed desktop**.
+
+## Incident 3 — controlled WireGuard outage
+
+A healthy baseline was first recorded from the WorkSpace:
+
+```powershell
+Test-NetConnection 192.168.14.10 -Port 53
+Resolve-DnsName madar.local -Server 192.168.14.10
+```
+
+Observed:
+
+```text
+SourceAddress    : 10.50.13.89
+TcpTestSucceeded : True
+madar.local      : 192.168.14.10
+```
+
+Then the tunnel was intentionally disabled on `MADAR-WG01`:
+
+```bash
+sudo wg-quick down wg0
+```
+
+The same WorkSpace tests produced:
+
+```text
+TcpTestSucceeded : False
+Resolve-DnsName  : timeout
+```
+
+The tunnel was restored:
+
+```bash
+sudo wg-quick up wg0
+```
+
+The same tests returned to success.
+
+## Why the failure test matters
+
+A successful screenshot can sometimes hide an accidental alternative route. The controlled outage proved the WorkSpace genuinely depended on the designed hybrid path.
+
+```text
+Healthy tunnel
+      ↓
+WorkSpace reaches on-prem DC
+      ↓
+Tunnel removed
+      ↓
+Connectivity fails
+      ↓
+Tunnel restored
+      ↓
+Connectivity recovers
+```
+
+That is stronger architectural evidence than a one-time ping.
+
+## Diagnostic method retained
 
 ```text
 Observe
@@ -164,29 +213,18 @@ Change one thing
 Re-test
 ```
 
-Avoid:
+Avoid changing route + firewall + WireGuard + credentials + directory settings simultaneously. A portfolio project is stronger when the engineer can explain **which layer failed, why it failed, and which evidence proved the fix**.
+
+## Final lessons
 
 ```text
-Change route + firewall + WireGuard + password + connector
-                         ↓
-                 "it works now"
-                         ↓
-                 no idea why
-```
-
-A portfolio project is stronger when the engineer can explain **why** the system failed and **which evidence** proved the fix.
-
-## Final lesson
-
-The hybrid path is a chain. A green status at one layer does not guarantee the next layer works.
-
-```text
-WireGuard handshake           ≠ routed application connectivity
-Ping                          ≠ DNS/Kerberos/LDAP readiness
-Route table entry             ≠ packet reached EC2
-EC2 received packet           ≠ packet entered WireGuard
-DNS connectivity              ≠ valid AD credentials
-AD Connector Active           ≠ least-privilege AWS access
+WireGuard handshake     != routed application connectivity
+Ping                    != DNS/Kerberos/LDAP readiness
+Route table entry       != packet reached EC2
+DNS connectivity        != valid AD credentials
+AD Connector Active     != end-user authentication
+WorkSpace READY         != hybrid dependency proven
+Failure + recovery test  = dependency proven operationally
 ```
 
 Each layer requires its own proof.
