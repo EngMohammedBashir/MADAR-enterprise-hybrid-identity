@@ -1,6 +1,6 @@
 # Phase 04 Master Checklist
 
-> **Checkpoint:** Hybrid identity is proven end to end through Amazon WorkSpaces. Documentation and final cleanup remain.
+> **Final checkpoint:** ✅ Phase 04 completed, validated end to end, failure-tested, documented, cost-reviewed and cleaned up.
 
 ## A — Planning
 - [x] business problem approved
@@ -142,6 +142,8 @@
 - [ ] AWS CLI SSO — future production extension
 - [ ] CloudTrail SSO principal proof — future production extension
 
+> The unchecked items above are intentionally out of the executed Phase 04 scope. They are not incomplete acceptance criteria.
+
 ## H — Evidence / documentation
 - [x] local AD / OU / users / groups evidence
 - [x] domain client / login / GPO evidence
@@ -155,38 +157,45 @@
 - [x] WorkSpace healthy baseline screenshot
 - [x] VPN failure screenshot
 - [x] VPN recovery screenshot
-- [x] README updated to final hybrid milestone
+- [x] validated architecture diagram
+- [x] final resource/cost cleanup proof
+- [x] README updated to final milestone
 - [x] CURRENT-STATE updated
 - [x] evidence index updated
-- [ ] final resource/cost cleanup proof
-- [ ] master MADAR transformation repository updated
+- [x] master MADAR transformation repository updated
 
-## I — Pause / cleanup discipline
-- [x] use AutoStop for the WorkSpace
-- [x] stop temporary compute when tests are complete
-- [x] power off local VMs when not required
-- [ ] delete WorkSpace after documentation review
-- [ ] deregister WorkSpaces directory when no longer needed
-- [ ] delete AD Connector when no later phase requires it
-- [ ] terminate `MADAR-P04-WG-HUB`
-- [ ] release public IPv4 / Elastic IP if unused
-- [ ] remove Phase 04-specific temporary routes/security rules if no continuity value
-- [ ] final Bills / Credits / Cost Explorer review
-- [ ] verify no paid Phase 04 resource remains unintentionally
-- [ ] Phase 04 closeout decision recorded
+## I — Final cleanup
+- [x] use AutoStop while WorkSpace testing was active
+- [x] capture all required evidence before destructive cleanup
+- [x] delete WorkSpace `ws-49q8s94dl`
+- [x] verify WorkSpace reached `TERMINATING` and subsequently disappeared from inventory
+- [x] deregister WorkSpaces directory
+- [x] delete AD Connector `d-90667da553`
+- [x] terminate `MADAR-P04-WG-HUB`
+- [x] release Phase 04 Elastic IP
+- [x] delete WG-HUB security group
+- [x] remove hybrid `192.168.14.0/24` route
+- [x] delete Phase 04 subnets
+- [x] delete custom route tables
+- [x] detach and delete Internet Gateway
+- [x] delete `MADAR-P04-VPC`
+- [x] verify VPC returns `InvalidVpcID.NotFound`
+- [x] final WorkSpaces / Directory Service / EC2 / EIP / VPC audit
+- [x] final Bills / Credits / Cost Explorer review
+- [x] record final closeout evidence
+- [x] Phase 04 closeout accepted
 
----
-
-## Resume checkpoint if another screenshot is required
+## 🏁 Final state
 
 ```text
-1. Power on MADAR-DC01
-2. Power on MADAR-WG01
-3. Start MADAR-P04-WG-HUB
-4. Start WorkSpace if stopped
-5. Verify WireGuard handshake
-6. Verify WorkSpace -> 192.168.14.10 TCP/53
-7. Verify Resolve-DnsName madar.local
+Phase 04
+   ├── Built              ✅
+   ├── Validated          ✅
+   ├── Failure-tested     ✅
+   ├── Recovered          ✅
+   ├── Documented         ✅
+   ├── Cleaned up         ✅
+   └── Cost-reviewed      ✅
 ```
 
-**Do not rebuild the VPC, Active Directory, WireGuard tunnel or AD Connector unless a regression test proves that layer is broken.**
+The local VMware identity VMs may be retained powered off for future lab continuity. The temporary Phase 04 AWS environment has been removed.
