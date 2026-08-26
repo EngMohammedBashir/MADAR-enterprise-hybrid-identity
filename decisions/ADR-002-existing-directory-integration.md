@@ -1,43 +1,77 @@
-# ADR-002 — Reuse the Existing Corporate Identity Source
+# ADR-002 — Reuse the Existing Corporate Directory
 
 **Status:** Accepted and implemented
 
-## Context
+## 🎯 Context
 
-The MADAR scenario already contains employee identities before Phase 04. Creating a second unrelated user directory purely for AWS would weaken the enterprise story and create duplicate lifecycle management.
+The MADAR environment already contains workforce identities organized in the `madar.local` Active Directory domain.
 
-## Decision
+Introducing a second directory only for AWS would create duplicate employee records and separate identity lifecycle paths for onboarding, role changes and offboarding.
 
-Represent the corporate identity source with a VMware-hosted Microsoft Active Directory lab and integrate that source with AWS through a routed WireGuard hybrid path and AWS Directory Service AD Connector.
+## 🧭 Decision
 
-The directory was then consumed by Amazon WorkSpaces Personal to prove a real domain-user authentication flow.
+Represent the corporate identity source with the VMware-hosted Microsoft Active Directory lab and integrate it with AWS through routed WireGuard connectivity and AWS Directory Service AD Connector.
 
-## Implemented path
+Amazon WorkSpaces Personal consumes the connected directory and provides the end-to-end domain authentication proof.
+
+## 🏗️ Implemented path
 
 ```text
-MADAR-DC01 / madar.local
-        ↓
+MADAR-DC01
+madar.local
+     ↓
 MADAR-WG01
-        ↓
-WireGuard
-        ↓
-AWS WG-HUB
-        ↓
-AD Connector d-90667da553
-        ↓
+     ↓
+Encrypted WireGuard tunnel
+     ↓
+AWS EC2 WG-HUB
+     ↓
+AWS Directory Service AD Connector
+     ↓
 Amazon WorkSpaces
-        ↓
-madar\sara.ibrahim login
+     ↓
+madar\sara.ibrahim
 ```
 
-## Guardrail
+## 🔎 Why AD Connector
 
-The account remained on the AWS Free Plan. No account-plan upgrade or Organizations change was performed merely to force an IAM Identity Center branch.
+AD Connector provides AWS services with access to the existing Active Directory without turning the lab into a second independently managed directory environment.
 
-## Consequences
+For this scenario, that preserves the architectural requirement that `madar.local` remains authoritative while AWS consumes the directory remotely.
 
-- the project demonstrates real directory integration rather than duplicate users,
-- the same employee identity was used locally and in an AWS-managed cloud desktop,
-- the local VM can be retained powered off for later phases,
-- paid integration infrastructure can be removed after evidence is complete,
-- IAM Identity Center remains a future production extension rather than an implemented Phase 04 claim.
+## 🧪 Validation
+
+The completed implementation demonstrated:
+
+- AD Connector successfully reaching `madar.local` over the hybrid route,
+- an Amazon WorkSpace creating a computer object inside the corporate directory,
+- WorkSpace computer `WSAMZN-I0F8R2FL` joined to `MADAR.LOCAL`,
+- `madar\sara.ibrahim` successfully authenticating to the WorkSpace,
+- DNS connectivity from the WorkSpace to `MADAR-DC01`,
+- loss and recovery of that connectivity when the WireGuard dependency was intentionally interrupted and restored.
+
+## 🛡️ Guardrail
+
+The AWS account remained within the agreed Free Plan constraints. Account-plan or AWS Organizations changes were not performed merely to force an IAM Identity Center implementation.
+
+Direct AWS-account SSO therefore remains explicitly documented as a future production extension rather than being presented as a completed Phase 04 capability.
+
+## ⚖️ Consequences
+
+### Benefits
+
+- Corporate identity remains authoritative in one directory.
+- AWS consumes real existing users rather than cloud-only duplicates.
+- WorkSpaces provides observable end-to-end authentication evidence.
+- Identity lifecycle continues to originate from the corporate directory.
+- The architecture creates a realistic hybrid dependency that can be failure-tested.
+
+### Trade-offs
+
+- Directory availability from AWS depends on the routed hybrid connection.
+- AD Connector depends on healthy AD DNS and required directory ports.
+- Temporary AWS integration infrastructure must be cleaned up after the lab.
+
+## ✅ Result
+
+The same corporate employee identity used in the local Active Directory environment was successfully consumed by an AWS-managed desktop through AD Connector, validating the existing-directory integration strategy.
