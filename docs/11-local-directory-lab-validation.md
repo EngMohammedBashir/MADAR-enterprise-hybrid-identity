@@ -40,6 +40,8 @@ Created organizational structure:
 - `Computers`
 - `Groups`
 
+A dedicated `WorkSpaces` OU was added later during the AWS integration stage for cloud-desktop computer objects.
+
 Created Global Security Groups:
 
 - `GG-Management`
@@ -108,7 +110,7 @@ The negative result is intentional evidence of authorization working correctly.
 
 ## Acceptance result
 
-The local corporate identity source is accepted for the purpose of moving to the AWS integration gate.
+The local corporate identity source was accepted as the source-side baseline for AWS integration.
 
 ```text
 Domain Controller      PASS
@@ -124,19 +126,34 @@ Allowed Access Test    PASS
 Denied Access Test     PASS
 ```
 
-## Next gate
+## Subsequent AWS integration outcome
 
-Do not add more local identity complexity merely for portfolio breadth. The next engineering problem is AWS workforce integration:
+This document records the **local baseline checkpoint**. Phase 04 subsequently continued beyond this checkpoint and completed the AWS integration path:
 
-- confirm the currently supported AD integration architecture,
-- confirm `us-east-1` cost before paid provisioning,
-- configure IAM Identity Center,
-- design AWS permission sets independently of the departmental OU layout,
-- validate SSO/MFA and temporary credentials,
-- perform positive and negative AWS authorization tests,
-- validate identity lifecycle and auditability,
-- clean up paid temporary resources.
+```text
+Local AD baseline
+      ↓
+CGNAT-aware WireGuard hybrid network
+      ↓
+AWS → on-prem AD/DNS protocol validation
+      ↓
+AWS Directory Service AD Connector
+      ↓
+Amazon WorkSpaces
+      ↓
+WorkSpace computer joined to madar.local
+      ↓
+madar\sara.ibrahim authenticated
+      ↓
+VPN failure / recovery validated
+      ↓
+Temporary AWS resources cleaned up
+```
+
+The original IAM Identity Center / permission-set branch was deliberately deferred under the Free Plan/account guardrail and is not claimed as implemented.
+
+For the final Phase 04 state, use [`../CURRENT-STATE.md`](../CURRENT-STATE.md). For the complete rebuild and validation procedure, use [`../runbooks/00-lab-rebuild-and-validation.md`](../runbooks/00-lab-rebuild-and-validation.md).
 
 ## Evidence
 
-See [`../evidence/README.md`](../evidence/README.md) for the complete local evidence index.
+See [`../evidence/README.md`](../evidence/README.md) for the complete evidence index.
