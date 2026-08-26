@@ -36,17 +36,19 @@ Local:
 - `MADAR-CLIENT01` — Windows 11 domain client
 - `MADAR-WG01` — WireGuard router, `192.168.14.30`
 
-AWS:
+AWS historical identifiers from the completed run:
 
 - VPC: `MADAR-P04-VPC` — `10.50.0.0/16`
-- WG-HUB EC2: `i-029deb16c4c36fd11`
+- WG-HUB EC2: `i-029deb16c4c36fd11` — private IP `10.50.1.132`
 - AD Connector: `d-90667da553`
 - WorkSpaces subnet: `subnet-05e3c3e6fea490ac1` — `10.50.13.0/24` — `us-east-1c`
 - WorkSpace: `ws-49q8s94dl`
 - WorkSpace computer: `WSAMZN-I0F8R2FL`
 - WorkSpace private IP: `10.50.13.89`
 
-## Execution rules that remained important
+These AWS identifiers are historical evidence; the temporary resources were deleted during closeout.
+
+## Execution rules
 
 1. Do not create directory integration before routed AD protocol tests pass.
 2. Do not disable Windows Firewall globally as the normal solution.
@@ -59,41 +61,27 @@ AWS:
 
 ## Stage 1 — Local directory baseline — COMPLETE
 
-Validated:
-
-- AD DS + DNS,
-- `madar.local`,
-- OUs and users,
-- Global Security Groups,
-- `MADAR-CLIENT01` domain join,
-- Sara domain login,
-- GPO / Domain firewall,
-- IT share allowed,
-- Finance share denied.
+Validated AD DS/DNS, `madar.local`, OUs/users, Global Security Groups, Client01 domain join, Sara domain login, GPO/Domain firewall, IT-share allow and Finance-share deny.
 
 ## Stage 2 — CGNAT-aware hybrid network — COMPLETE
 
-The home lab is behind Zain 5G CGNAT. `MADAR-WG01` therefore initiates the tunnel outbound toward the AWS EC2 endpoint.
+The home lab was behind Zain 5G CGNAT. `MADAR-WG01` therefore initiated the tunnel outbound toward the AWS EC2 endpoint.
 
-Required network-appliance properties were implemented:
+Implemented network-appliance properties included:
 
 - `net.ipv4.ip_forward = 1`,
 - EC2 source/destination check disabled,
 - VPC route to `192.168.14.0/24`,
-- WireGuard AllowedIPs,
-- Security Group allowance for VPC transit traffic,
+- WireGuard `AllowedIPs`,
+- Security Group allowance for required VPC transit traffic,
 - FORWARD / NAT rules,
 - `PersistentKeepalive = 25` on the local side.
 
 ## Stage 3 — AD protocol validation — COMPLETE
 
-The AWS side reached `MADAR-DC01` across the tunnel. Diagnostics included DNS, Kerberos, LDAP, SMB and related AD ports.
-
-Packet capture was used to prove that Directory Service traffic crossed the EC2 appliance and received replies from the on-premises domain controller.
+The AWS side reached `MADAR-DC01` across the tunnel. Diagnostics included DNS, Kerberos, LDAP, SMB and related AD ports. Packet capture proved AWS-originated directory traffic crossed the EC2 appliance and received replies from the on-premises DC.
 
 ## Stage 4 — AD Connector — COMPLETE
-
-The Connector troubleshooting sequence was:
 
 ```text
 DNS unavailable
@@ -107,7 +95,7 @@ validate/reset svc-adconnector
 AD Connector Active
 ```
 
-Final Connector:
+Final validated Connector before cleanup:
 
 ```text
 Directory ID : d-90667da553
@@ -117,7 +105,7 @@ Stage        : Active
 
 ## Stage 5 — WorkSpaces network preparation — COMPLETE
 
-WorkSpaces registration required compatible subnets in different supported AZs. A new private subnet was created:
+WorkSpaces registration required compatible subnets in different supported AZs. A new private subnet was created in `us-east-1c`:
 
 ```bash
 AWS_PAGER="" aws ec2 create-subnet \
@@ -128,7 +116,7 @@ AWS_PAGER="" aws ec2 create-subnet \
   --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=MADAR-P04-WorkSpaces-Private-C}]'
 ```
 
-It was associated with the existing hybrid route table:
+It was associated with the hybrid route table:
 
 ```bash
 AWS_PAGER="" aws ec2 associate-route-table \
@@ -137,7 +125,7 @@ AWS_PAGER="" aws ec2 associate-route-table \
   --subnet-id subnet-05e3c3e6fea490ac1
 ```
 
-This preserved the route:
+This preserved:
 
 ```text
 192.168.14.0/24 -> AWS WireGuard routing appliance
@@ -145,15 +133,7 @@ This preserved the route:
 
 ## Stage 6 — WorkSpaces directory registration — COMPLETE
 
-The AD Connector was registered with Amazon WorkSpaces using supported subnets in `us-east-1b` and `us-east-1c`.
-
-Final state:
-
-```text
-Registered : True
-Status     : Active
-Domain     : madar.local
-```
+The AD Connector was registered with Amazon WorkSpaces using supported subnets. The directory reached a registered/active state for WorkSpaces consumption.
 
 ## Stage 7 — Dedicated WorkSpaces OU — COMPLETE
 
@@ -163,23 +143,16 @@ Created:
 OU=WorkSpaces,OU=MADAR,DC=madar,DC=local
 ```
 
-The `svc-adconnector` service account was delegated the required computer-object permissions in that OU, and the WorkSpaces directory target OU was updated accordingly.
+`svc-adconnector` received the required delegated computer-object permissions in that OU and the WorkSpaces directory target OU was updated accordingly.
 
 ## Stage 8 — WorkSpace provisioning — COMPLETE
 
-Selected:
-
 ```text
-Bundle       : Standard Windows — Free tier eligible
+Bundle       : Standard Windows — Free tier eligible at execution time
 Mode         : AutoStop after 1 hour
 Root volume  : 80 GB
 User volume  : 10 GB
 User         : sara.ibrahim
-```
-
-Created:
-
-```text
 WorkSpace ID : ws-49q8s94dl
 Computer     : WSAMZN-I0F8R2FL
 Private IP   : 10.50.13.89
@@ -197,7 +170,7 @@ Select-Object Name,DNSHostName,Enabled,DistinguishedName |
 Format-Table -AutoSize
 ```
 
-Observed the AWS WorkSpace computer object in the on-premises AD.
+The AWS WorkSpace computer object appeared in the on-premises AD.
 
 ## Stage 10 — Domain-user cloud authentication — COMPLETE
 
@@ -217,11 +190,7 @@ WSAMZN-I0F8R2FL
 MADAR.LOCAL
 ```
 
-This proves the AWS-managed desktop consumed the on-premises corporate identity.
-
 ## Stage 11 — Healthy dependency baseline — COMPLETE
-
-From the WorkSpace:
 
 ```powershell
 Test-NetConnection 192.168.14.10 -Port 53
@@ -239,7 +208,7 @@ sudo wg show
 sudo wg-quick down wg0
 ```
 
-The same WorkSpace tests then failed:
+The same WorkSpace tests failed as expected:
 
 ```text
 TcpTestSucceeded : False
@@ -247,8 +216,6 @@ Resolve-DnsName  : timeout
 ```
 
 ## Stage 13 — Recovery — COMPLETE
-
-Restored:
 
 ```bash
 sudo wg-quick up wg0
@@ -259,7 +226,7 @@ The WorkSpace again reached `192.168.14.10:53` and resolved `madar.local`.
 
 ## Original IAM Identity Center branch — DEFERRED
 
-The initial execution plan included AWS Organizations, IAM Identity Center, permission sets, MFA, CLI SSO and CloudTrail workforce-session proof.
+The initial plan included AWS Organizations, IAM Identity Center, permission sets, MFA, CLI SSO and CloudTrail workforce-session proof.
 
 Those steps were **not executed** because the account remained intentionally on the AWS Free Plan and the project did not perform an account-plan upgrade or force Organizations changes solely to satisfy the initial architecture.
 
@@ -277,36 +244,64 @@ Permission sets
 Temporary AWS sessions
 ```
 
-## Evidence captured
+## Stage 14 — Controlled cleanup — COMPLETE
 
-- AD Connector Active
-- WorkSpace computer object in on-prem AD
-- WorkSpace domain-user authentication
-- healthy WorkSpace-to-DC baseline
-- controlled WireGuard failure
-- successful recovery
-- earlier WireGuard, routing, AD/GPO and local authorization evidence
-
-## Closeout — IN PROGRESS
-
-After documentation review:
+After all required evidence had been captured, temporary AWS resources were removed in dependency order:
 
 ```text
-Stop/delete WorkSpace
-      ↓
-Deregister WorkSpaces directory
-      ↓
-Delete AD Connector if not reused
-      ↓
-Terminate temporary WG-HUB EC2
-      ↓
-Release public address if unused
-      ↓
-Remove temporary Phase 04 network artifacts as appropriate
-      ↓
-Power off local VMs
-      ↓
-Bills / Credits / residual-resource audit
-      ↓
-PHASE 04 ACCEPTED
+WorkSpace ws-49q8s94dl                DELETED
+WorkSpaces directory registration     REMOVED
+AD Connector d-90667da553             DELETED
+WG-HUB EC2 i-029deb16c4c36fd11        TERMINATED
+Elastic IP                            RELEASED
+WG-HUB Security Group                 DELETED
+Hybrid route                          DELETED
+Phase 04 subnets                      DELETED
+Custom route tables                   DELETED
+Internet Gateway                      DELETED
+MADAR-P04-VPC                         DELETED
 ```
+
+Final inventory checks returned no WorkSpaces, no Directory Service directory, no Elastic IP and no Phase 04 VPC. The EC2 instance remained visible temporarily only as `terminated`, which is expected AWS history behavior.
+
+## Stage 15 — Cost closeout — COMPLETE
+
+Final Cost Explorer checkpoint:
+
+```text
+Gross month-to-date Usage/Fee : $ 2.1355 USD
+AWS credits applied           : $-2.1355 USD
+Calculated net                : $ 0.0000 USD
+```
+
+These are account-level month-to-date figures and are not presented as exact Phase 04-only allocation.
+
+## Evidence captured
+
+- local AD / users / groups / GPO / authorization,
+- WireGuard tunnel,
+- AWS hybrid routing,
+- AWS → on-prem AD connectivity,
+- AD Connector Active,
+- WorkSpace computer object in on-prem AD,
+- WorkSpace domain-user authentication,
+- healthy WorkSpace-to-DC baseline,
+- controlled WireGuard failure,
+- successful recovery,
+- final cleanup and cost closeout.
+
+## 🏁 Final status
+
+```text
+PHASE 04
+   Built            ✅
+   Validated        ✅
+   Failure-tested   ✅
+   Recovered        ✅
+   Documented       ✅
+   Cleaned up       ✅
+   Cost-reviewed    ✅
+   Accepted         ✅
+```
+
+For the full command-by-command rebuild, troubleshooting and cleanup procedure, use [`../runbooks/00-lab-rebuild-and-validation.md`](../runbooks/00-lab-rebuild-and-validation.md).
