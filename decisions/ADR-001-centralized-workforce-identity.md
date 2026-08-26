@@ -1,19 +1,37 @@
-# ADR-001 — Centralize Workforce Access
+# ADR-001 — Centralize Workforce Identity
 
-**Status:** Accepted for Phase 04 design
+**Status:** Accepted and partially implemented in Phase 04
 
 ## Context
 
-MADAR's AWS footprint now supports migrated and cloud-native workloads. Managing ordinary employee access with separate IAM users and long-lived credentials would not scale safely.
+MADAR's AWS footprint now supports migrated and cloud-native workloads. Managing ordinary employee access with unrelated cloud identities and long-lived credentials would not scale safely.
 
 ## Decision
 
-Use a centralized workforce identity pattern based on AWS IAM Identity Center for human AWS access.
+Keep the existing corporate Active Directory as the source identity authority and prove that AWS can consume that identity centrally rather than creating duplicate users.
+
+The Phase 04 lab validates this through:
+
+```text
+madar.local
+   ↓
+WireGuard hybrid connectivity
+   ↓
+AWS Directory Service AD Connector
+   ↓
+Amazon WorkSpaces
+   ↓
+Corporate user authentication
+```
+
+## Original SSO design
+
+IAM Identity Center remains the preferred future pattern for direct AWS-account workforce SSO, temporary sessions and permission sets. It was not forced in this Free Plan lab because the account/Organizations prerequisites were outside the agreed guardrails.
 
 ## Consequences
 
-- workforce access becomes session-based,
-- group/role assignments become the main authorization model,
-- employee lifecycle changes can be applied centrally,
-- IAM users are not the default workforce pattern,
-- later phases can reuse the same identity foundation.
+- employee identity remains centralized in the corporate directory,
+- AWS can consume the directory without duplicating the employee account,
+- WorkSpaces proves end-to-end hybrid authentication,
+- IAM users are still not the preferred future workforce pattern,
+- direct AWS-account SSO remains a production extension rather than a falsely claimed lab result.
