@@ -1,14 +1,32 @@
 # ADR-003 — Group-Based Authorization
 
-**Status:** Accepted; local authorization implemented / direct AWS permission-set mapping deferred
+**Status:** Accepted  
+**Local authorization:** Implemented and validated  
+**Direct AWS permission-set mapping:** Future extension
 
-## Decision
+## 🎯 Context
 
-Use groups as the primary authorization model rather than assigning ordinary access directly to individual users.
+Assigning access directly to individual employees creates brittle authorization and makes onboarding, transfers and offboarding difficult to operate consistently.
 
-## Implemented proof
+The MADAR identity model therefore requires access to follow job function and group membership rather than one-off per-user permissions.
 
-The source-side Active Directory model uses departmental Global Security Groups:
+## 🧭 Decision
+
+Use Active Directory security groups as the primary authorization abstraction for workforce access.
+
+```text
+Employee
+   ↓
+Department / job function
+   ↓
+Security group
+   ↓
+Authorized resource
+```
+
+## 🏢 Implemented directory model
+
+The source Active Directory contains departmental Global Security Groups:
 
 - `GG-Management`
 - `GG-IT`
@@ -16,25 +34,29 @@ The source-side Active Directory model uses departmental Global Security Groups:
 - `GG-HR`
 - `GG-Sales`
 
-The IT identity `sara.ibrahim` was used for a positive and negative authorization test:
+This keeps authorization attached to organizational role rather than individual identity.
+
+## 🧪 Positive and negative proof
+
+The IT identity `sara.ibrahim` was used to demonstrate both sides of the authorization boundary:
 
 ```text
-Sara / GG-IT
-   ├── IT share       -> ALLOWED
-   └── Finance share  -> DENIED
+sara.ibrahim
+     ↓
+GG-IT
+ ├── IT share        → ALLOWED ✅
+ └── Finance share   → DENIED  🚫
 ```
 
-This proves that group membership has operational authorization meaning rather than being directory decoration.
+The denied path is as important as the allowed path: it proves that group membership has operational authorization meaning and that the boundary is enforced rather than merely documented.
 
-## Direct AWS authorization branch
+## ☁️ Future AWS authorization mapping
 
-The original design planned AWS permission sets such as Cloud Admin, DevOps, Developer, Security and Auditor through IAM Identity Center.
+The original architecture also considered AWS job-function permission sets such as Cloud Admin, DevOps, Developer, Security and Auditor through IAM Identity Center.
 
-That branch was not implemented in the Free Plan lab because the account was not upgraded and AWS Organizations changes were not forced solely to satisfy the initial architecture.
+Direct permission-set mapping was not implemented in this Free Plan lab because account/Organizations changes were intentionally not forced solely to satisfy the initial design.
 
-## Future production rule
-
-For direct AWS-account access, preserve the same principle:
+When direct AWS-account SSO is introduced, the same authorization principle should be preserved:
 
 ```text
 Employee
@@ -45,7 +67,34 @@ Central AWS workforce identity platform
    ↓
 Job-function permission set
    ↓
-Temporary session
+Temporary AWS session
 ```
 
-Every production role should demonstrate an intended allowed action and at least one denied action that proves the privilege boundary.
+## 🔐 Security principle
+
+Every production authorization role should have evidence for both:
+
+- an intended action that succeeds,
+- an out-of-scope action that is denied.
+
+This converts least privilege from a policy statement into a testable control.
+
+## ⚖️ Consequences
+
+### Benefits
+
+- Access follows organizational role.
+- Onboarding and transfers become membership changes rather than per-resource edits.
+- Offboarding is easier to reason about centrally.
+- Positive and negative tests make authorization boundaries observable.
+- The model maps naturally to future AWS permission sets.
+
+### Trade-offs
+
+- Group design must remain governed to avoid privilege accumulation.
+- Nested or overlapping groups require careful review as the organization grows.
+- Direct AWS permission-set enforcement remains a future extension of this Phase 04 lab.
+
+## ✅ Result
+
+The implemented Active Directory authorization model successfully demonstrated role-aligned group membership with both permitted and denied resource access.
