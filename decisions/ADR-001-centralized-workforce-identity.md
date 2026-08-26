@@ -1,37 +1,63 @@
-# ADR-001 — Centralize Workforce Identity
+# ADR-001 — Centralized Workforce Identity
 
-**Status:** Accepted and partially implemented in Phase 04
+**Status:** Accepted and implemented for hybrid directory authentication  
+**Direct AWS-account SSO:** Future production extension
 
-## Context
+## 🎯 Context
 
-MADAR's AWS footprint now supports migrated and cloud-native workloads. Managing ordinary employee access with unrelated cloud identities and long-lived credentials would not scale safely.
+MADAR already has a corporate identity authority: Microsoft Active Directory domain `madar.local`.
 
-## Decision
+Creating unrelated AWS-side employee identities would introduce duplicate accounts, fragmented lifecycle management and a weaker enterprise identity model.
 
-Keep the existing corporate Active Directory as the source identity authority and prove that AWS can consume that identity centrally rather than creating duplicate users.
+The architecture therefore needed to preserve the existing directory as the authoritative identity source while proving that an AWS-managed end-user service could consume those identities across the hybrid boundary.
 
-The Phase 04 lab validates this through:
+## 🧭 Decision
+
+Retain `madar.local` as the source of workforce identity and integrate AWS with the existing directory rather than duplicating employee accounts.
+
+The implemented Phase 04 validation path is:
 
 ```text
-madar.local
-   ↓
-WireGuard hybrid connectivity
-   ↓
+Corporate employee
+      ↓
+madar.local Active Directory
+      ↓
+WireGuard routed hybrid connectivity
+      ↓
 AWS Directory Service AD Connector
-   ↓
+      ↓
 Amazon WorkSpaces
-   ↓
-Corporate user authentication
+      ↓
+Domain authentication
 ```
 
-## Original SSO design
+## 🧪 Implemented proof
 
-IAM Identity Center remains the preferred future pattern for direct AWS-account workforce SSO, temporary sessions and permission sets. It was not forced in this Free Plan lab because the account/Organizations prerequisites were outside the agreed guardrails.
+The test identity `sara.ibrahim` remained an on-premises Active Directory account and successfully authenticated to an AWS WorkSpace joined to `MADAR.LOCAL`.
 
-## Consequences
+This validates centralized identity consumption across the hybrid path without creating a second employee identity solely for the cloud desktop.
 
-- employee identity remains centralized in the corporate directory,
-- AWS can consume the directory without duplicating the employee account,
-- WorkSpaces proves end-to-end hybrid authentication,
-- IAM users are still not the preferred future workforce pattern,
-- direct AWS-account SSO remains a production extension rather than a falsely claimed lab result.
+## ☁️ Direct AWS-account SSO
+
+IAM Identity Center remains the preferred future direction for centralized AWS-account workforce access, temporary sessions and permission-set-based authorization.
+
+That branch was not represented as implemented in this lab. The AWS account remained within the agreed Free Plan guardrails and Organizations/account-plan changes were not forced solely to satisfy the original design.
+
+## ⚖️ Consequences
+
+### Benefits
+
+- One authoritative employee identity source.
+- Reduced duplicate-account lifecycle management.
+- Real hybrid authentication proof through an AWS-managed service.
+- Clear separation between authentication source and cloud service consumption.
+- No false claim that direct AWS-account SSO was implemented when it was not.
+
+### Trade-offs
+
+- Availability of AWS-side directory authentication depends on the hybrid network path and on-premises AD/DNS health.
+- Direct AWS-account workforce SSO remains an additional production architecture step.
+
+## ✅ Result
+
+Phase 04 successfully demonstrated that the existing `madar.local` workforce identity can be consumed from AWS through AD Connector and Amazon WorkSpaces while keeping the corporate directory authoritative.
