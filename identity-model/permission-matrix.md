@@ -1,6 +1,8 @@
-# Initial Permission Matrix
+# Future AWS Permission Matrix
 
-This matrix is a design starting point. Exact AWS managed/custom policies will be selected only after tomorrow's service-by-service review.
+This matrix is retained as the **future production design** for direct AWS-account workforce access through IAM Identity Center.
+
+It was not implemented in the current Free Plan lab and should not be read as validated evidence.
 
 | Role | Read | Operate workloads | Deploy/change app infra | Security visibility | IAM administration | Destructive admin |
 |---|---:|---:|---:|---:|---:|---:|
@@ -10,6 +12,18 @@ This matrix is a design starting point. Exact AWS managed/custom policies will b
 | Security Team | Yes | No | No | Yes | Read only | No |
 | Auditor | Yes | No | No | Read only | Read only | No |
 
-## Test rule
+## Current implemented authorization proof
 
-Every role must have at least one **allowed** test and one **denied** test. A denied action is considered successful evidence when it matches the intended boundary.
+Phase 04 currently proves group-based authorization inside the corporate AD environment:
+
+```text
+sara.ibrahim / GG-IT
+   ├── IT share       -> ALLOWED
+   └── Finance share  -> DENIED
+```
+
+It also proves centralized corporate authentication to Amazon WorkSpaces through AD Connector.
+
+## Future test rule
+
+When IAM Identity Center is intentionally deployed in a production AWS Organization, every role above must have at least one **allowed** action and one **denied** action. A denied action counts as successful evidence when it matches the intended privilege boundary.
